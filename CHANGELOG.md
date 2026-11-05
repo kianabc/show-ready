@@ -3,6 +3,11 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.2.0] — 2026-11-05
+
+### Added
+- The photo library now survives quitting: photos, listings, edit versions and approvals are saved and restored at the next launch. Previously every quit silently emptied the app.
+
 ## [0.1.0] — 2026-11-05
 
 First versioned release.

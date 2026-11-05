@@ -70,7 +70,7 @@ struct AppSettings: Codable, Equatable {
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var photos: [PhotoItem] = []
+    @Published var photos: [PhotoItem] = [] { didSet { scheduleLibrarySave() } }
     @Published var selection: Set<PhotoItem.ID> = []
     @Published var settings: AppSettings { didSet { save(settings, "settings") } }
     @Published var models: [ImageModel] { didSet { save(models, "models") } }
@@ -80,11 +80,14 @@ final class AppStore: ObservableObject {
     @Published var isRunning = false
     @Published var alert: String?
     @Published var pendingBatch: (ids: [PhotoItem.ID], estimate: Double)?
-    @Published var listings: [String] = []
+    @Published var listings: [String] = [] { didSet { scheduleLibrarySave() } }
     /// New imports go into this listing; nil means unsorted.
-    @Published var currentListing: String?
+    @Published var currentListing: String? { didSet { scheduleLibrarySave() } }
 
     private var runTask: Task<Void, Never>?
+    private var librarySaveTask: Task<Void, Never>?
+    /// Library mutations during restore must not write a half-restored file.
+    private var restoringLibrary = true
     let workDir: URL
 
     init() {
@@ -98,6 +101,111 @@ final class AppStore: ObservableObject {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         workDir = support.appendingPathComponent("Showready/Results", isDirectory: true)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        restoreLibrary()
+    }
+
+    // MARK: Library persistence
+
+    /// The photo library used to live only in memory, so every quit silently
+    /// emptied the app. The snapshot keeps everything that can't be rebuilt:
+    /// original paths, listings, edit versions, approvals. Thumbnails and
+    /// transient status are rebuilt at load.
+    private struct LibrarySnapshot: Codable {
+        struct Version: Codable {
+            var url: URL
+            var edits: [String]
+            var altered: Bool
+            var cost: Double
+            var structureScore: Double?
+        }
+        struct Photo: Codable {
+            var url: URL
+            var size: PixelSize
+            var options: EditOptions
+            var listing: String
+            var chosen: Int
+            var approved: Bool
+            var maskStrokes: [MaskStroke]
+            var results: [Version]
+        }
+        var photos: [Photo]
+        var listings: [String]
+        var currentListing: String?
+    }
+
+    private var libraryURL: URL {
+        workDir.deletingLastPathComponent().appendingPathComponent("library.json")
+    }
+
+    /// Coalesces the many small mutations of a processing run into one write.
+    private func scheduleLibrarySave() {
+        guard !restoringLibrary else { return }
+        librarySaveTask?.cancel()
+        librarySaveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.saveLibrary()
+        }
+    }
+
+    private func saveLibrary() {
+        let snapshot = LibrarySnapshot(
+            photos: photos.map { p in
+                LibrarySnapshot.Photo(
+                    url: p.url, size: p.size, options: p.options, listing: p.listing,
+                    chosen: p.chosen, approved: p.approved, maskStrokes: p.maskStrokes,
+                    results: p.results.map {
+                        LibrarySnapshot.Version(url: $0.url, edits: $0.edits, altered: $0.altered,
+                                                cost: $0.cost, structureScore: $0.structureScore)
+                    })
+            },
+            listings: listings,
+            currentListing: currentListing
+        )
+        if let data = try? JSONEncoder().encode(snapshot) {
+            try? data.write(to: libraryURL, options: .atomic)
+        }
+    }
+
+    private func restoreLibrary() {
+        defer { restoringLibrary = false }
+        guard let data = try? Data(contentsOf: libraryURL),
+              let snapshot = try? JSONDecoder().decode(LibrarySnapshot.self, from: data) else { return }
+        listings = snapshot.listings
+        currentListing = snapshot.currentListing
+        // A photo whose original file is gone can't be edited or exported;
+        // drop it rather than show a row that fails on every action.
+        photos = snapshot.photos.compactMap { p in
+            guard FileManager.default.fileExists(atPath: p.url.path) else { return nil }
+            var item = PhotoItem(url: p.url, size: p.size, thumbnail: nil, options: p.options,
+                                 listing: p.listing)
+            item.results = p.results
+                .filter { FileManager.default.fileExists(atPath: $0.url.path) }
+                .map { EditVersion(url: $0.url, edits: $0.edits, altered: $0.altered,
+                                   cost: $0.cost, structureScore: $0.structureScore) }
+            item.chosen = item.results.indices.contains(p.chosen) ? p.chosen : max(item.results.count - 1, 0)
+            // Approval is only meaningful while the approved version still exists.
+            item.approved = p.approved && p.results.count == item.results.count
+            item.maskStrokes = p.maskStrokes
+            if !item.results.isEmpty { item.status = .done }
+            return item
+        }
+        if let first = photos.first { selection = [first.id] }
+        regenerateThumbnails()
+    }
+
+    /// Thumbnails aren't snapshotted (hundreds of images of bytes for data the
+    /// originals already hold); rebuild them quietly after launch.
+    private func regenerateThumbnails() {
+        let pending = photos.filter { $0.thumbnail == nil }.map { ($0.id, $0.url) }
+        Task {
+            for (id, url) in pending {
+                let thumb = await Task.detached(priority: .utility) { ImageTools.thumbnail(url) }.value
+                if let i = self.photos.firstIndex(where: { $0.id == id }) {
+                    self.photos[i].thumbnail = thumb
+                }
+            }
+        }
     }
 
     // MARK: Persistence
