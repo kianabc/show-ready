@@ -76,7 +76,9 @@ final class AppStore: ObservableObject {
         models = AppStore.load("models") ?? ModelCatalog.defaults
         calibration = AppStore.load("calibration") ?? Calibration()
         ledger = AppStore.load("ledger") ?? SpendLedger()
-        apiKey = Keychain.load()
+        // An OPENAI_API_KEY environment variable is used when the Keychain is empty (handy for CI and terminal runs).
+        let stored = Keychain.load()
+        apiKey = stored.isEmpty ? (ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? "") : stored
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         workDir = support.appendingPathComponent("Showready/Results", isDirectory: true)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
@@ -309,33 +311,39 @@ final class AppStore: ObservableObject {
         panel.prompt = "Export Here"
         guard panel.runModal() == .OK, let folder = panel.url else { return }
 
+        Task {
+            let failures = await exportTo(folder, ids: ready.map(\.id))
+            NSWorkspace.shared.activateFileViewerSelecting([folder])
+            if !failures.isEmpty { alert = "Could not export: \(failures.joined(separator: ", "))" }
+        }
+    }
+
+    /// Writes chosen versions plus edit-log.csv into `folder`. Returns names that failed.
+    func exportTo(_ folder: URL, ids: [PhotoItem.ID]) async -> [String] {
+        let ready = photos.filter { ids.contains($0.id) && $0.chosenVersion != nil }
         let longEdge = settings.exportLongEdge > 0 ? settings.exportLongEdge : nil
         let addSuffix = settings.addDisclosureToFilename
         let jobs = ready.map { ($0.name, $0.url.lastPathComponent, $0.chosenVersion!) }
         isRunning = true
-        Task {
-            let failures = await Task.detached(priority: .userInitiated) { () -> [String] in
-                var csv = "file,original,edits,digitally_altered,cost_usd\n"
-                var failures: [String] = []
-                for (n, job) in jobs.enumerated() {
-                    let (base, original, v) = job
-                    let suffix = (v.altered && addSuffix) ? "-virtually-enhanced" : ""
-                    let name = String(format: "%02d-%@%@.jpg", n + 1, base, suffix)
-                    do {
-                        try ImageTools.export(v.url, to: folder.appendingPathComponent(name), longEdge: longEdge)
-                        let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
-                        csv += "\"\(name)\",\"\(original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(String(format: "%.4f", v.cost))\n"
-                    } catch {
-                        failures.append(base)
-                    }
+        defer { isRunning = false }
+        return await Task.detached(priority: .userInitiated) { () -> [String] in
+            var csv = "file,original,edits,digitally_altered,cost_usd\n"
+            var failures: [String] = []
+            for (n, job) in jobs.enumerated() {
+                let (base, original, v) = job
+                let suffix = (v.altered && addSuffix) ? "-virtually-enhanced" : ""
+                let name = String(format: "%02d-%@%@.jpg", n + 1, base, suffix)
+                do {
+                    try ImageTools.export(v.url, to: folder.appendingPathComponent(name), longEdge: longEdge)
+                    let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
+                    csv += "\"\(name)\",\"\(original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(String(format: "%.4f", v.cost))\n"
+                } catch {
+                    failures.append(base)
                 }
-                try? csv.write(to: folder.appendingPathComponent("edit-log.csv"), atomically: true, encoding: .utf8)
-                return failures
-            }.value
-            isRunning = false
-            NSWorkspace.shared.activateFileViewerSelecting([folder])
-            if !failures.isEmpty { alert = "Could not export: \(failures.joined(separator: ", "))" }
-        }
+            }
+            try? csv.write(to: folder.appendingPathComponent("edit-log.csv"), atomically: true, encoding: .utf8)
+            return failures
+        }.value
     }
 }
 #endif

@@ -1,0 +1,59 @@
+name: demo
+# Runs Showready unattended on a Mac: imports sample house photos, edits them,
+# exports the results and screenshots the window. Download the "demo-output" artifact.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ai:
+        description: "Run real OpenAI edits (needs the OPENAI_API_KEY repo secret; costs about $0.15 per photo)"
+        type: boolean
+        default: false
+      ai_count:
+        description: "How many photos to send to OpenAI"
+        default: "2"
+
+jobs:
+  demo:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app
+        run: ./scripts/build-app.sh
+      - name: Get sample photos
+        run: ./scripts/fetch-demo-photos.sh "$RUNNER_TEMP/demo/photos"
+      - name: Run Showready
+        env:
+          SHOWREADY_DEMO_DIR: ${{ runner.temp }}/demo/photos
+          SHOWREADY_DEMO_OUT: ${{ runner.temp }}/demo/output
+          SHOWREADY_DEMO_QUIT: "1"
+          SHOWREADY_DEMO_AI: ${{ inputs.ai && '1' || '0' }}
+          SHOWREADY_DEMO_AI_COUNT: ${{ inputs.ai_count || '2' }}
+          OPENAI_API_KEY: ${{ inputs.ai && secrets.OPENAI_API_KEY || '' }}
+        run: |
+          mkdir -p "$SHOWREADY_DEMO_OUT"
+          "build/Showready.app/Contents/MacOS/Showready" > "$SHOWREADY_DEMO_OUT/app-output.txt" 2>&1 &
+          PID=$!
+          sleep 25
+          screencapture -x "$SHOWREADY_DEMO_OUT/screen-early.png" || true
+          for i in $(seq 1 1100); do
+            kill -0 $PID 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 $PID 2>/dev/null; then
+            screencapture -x "$SHOWREADY_DEMO_OUT/screen-timeout.png" || true
+            kill $PID; echo "App did not finish in time"
+          fi
+          cp "$RUNNER_TEMP/demo/photo-credits.txt" "$SHOWREADY_DEMO_OUT/" 2>/dev/null || true
+          echo "----- app output -----"; grep -v "^$" "$SHOWREADY_DEMO_OUT/app-output.txt" | tail -60
+          ls -la "$SHOWREADY_DEMO_OUT"
+          test -f "$SHOWREADY_DEMO_OUT/demo-log.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-output
+          path: |
+            ${{ runner.temp }}/demo/output
+            ${{ runner.temp }}/demo/photos
