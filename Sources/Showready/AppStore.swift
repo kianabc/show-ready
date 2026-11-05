@@ -1,7 +1,7 @@
 #if os(macOS)
 import AppKit
 import SwiftUI
-import ListingPolishCore
+import ShowreadyCore
 
 enum PhotoStatus: Equatable {
     case idle, queued, working, done, failed(String)
@@ -25,13 +25,21 @@ struct PhotoItem: Identifiable {
     var thumbnail: NSImage?
     var options: EditOptions
     var status: PhotoStatus = .idle
-    var results: [URL] = []          // one per variation, newest run last
+    var results: [EditVersion] = []  // one per variation, newest run last
     var chosen: Int = 0
     var maskStrokes: [MaskStroke] = []
-    var lastCost: Double?
-    var lastEdits: [String] = []
 
-    var chosenResult: URL? { results.indices.contains(chosen) ? results[chosen] : nil }
+    var chosenVersion: EditVersion? { results.indices.contains(chosen) ? results[chosen] : nil }
+    var chosenResult: URL? { chosenVersion?.url }
+    var lastCost: Double? { results.last?.cost }
+}
+
+/// One edited result, with what was asked for when it was made (for the MLS disclosure log).
+struct EditVersion: Equatable {
+    var url: URL
+    var edits: [String]
+    var altered: Bool
+    var cost: Double
 }
 
 /// Settings that persist between launches.
@@ -64,13 +72,13 @@ final class AppStore: ObservableObject {
     let workDir: URL
 
     init() {
-        settings = Self.load("settings") ?? AppSettings()
-        models = Self.load("models") ?? ModelCatalog.defaults
-        calibration = Self.load("calibration") ?? Calibration()
-        ledger = Self.load("ledger") ?? SpendLedger()
+        settings = AppStore.load("settings") ?? AppSettings()
+        models = AppStore.load("models") ?? ModelCatalog.defaults
+        calibration = AppStore.load("calibration") ?? Calibration()
+        ledger = AppStore.load("ledger") ?? SpendLedger()
         apiKey = Keychain.load()
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        workDir = support.appendingPathComponent("ListingPolish/Results", isDirectory: true)
+        workDir = support.appendingPathComponent("Showready/Results", isDirectory: true)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
     }
 
@@ -141,6 +149,7 @@ final class AppStore: ObservableObject {
                     return
                 }
                 let (size, thumb, kind) = loaded
+                guard !self.photos.contains(where: { $0.url == url }) else { return }
                 self.photos.append(PhotoItem(url: url, size: size, thumbnail: thumb,
                                              options: .defaults(for: kind)))
                 if self.selection.isEmpty, let first = self.photos.first { self.selection = [first.id] }
@@ -184,7 +193,7 @@ final class AppStore: ObservableObject {
                 var running = 0
                 for id in ids {
                     if Task.isCancelled { break }
-                    if running >= limit { await group.next(); running -= 1 }
+                    if running >= limit { _ = await group.next(); running -= 1 }
                     group.addTask { await self.process(id) }
                     running += 1
                 }
@@ -214,11 +223,16 @@ final class AppStore: ObservableObject {
         let strokes = p.maskStrokes
         let workDir = self.workDir
         let sourceURL = p.url
+        let sourceSize = p.size
+        let summary = p.options.summary
+        let altered = p.options.isMaterialAlteration
 
         do {
-            let result = try await Task.detached(priority: .userInitiated) { () -> (EditResult, [URL]) in
-                let upload = try ImageTools.uploadData(sourceURL, size: size, levelHorizon: level, asPNG: hasMask)
-                let mask = hasMask ? MaskRenderer.png(strokes: strokes, size: size) : nil
+            let work = Task.detached(priority: .userInitiated) { () -> (EditResult, [URL]) in
+                // Levelling rotates the photo, which would misplace a painted mask.
+                let upload = try ImageTools.uploadData(sourceURL, size: size, levelHorizon: level && !hasMask, asPNG: hasMask)
+                let crop = ImageTools.fillCrop(source: sourceSize, target: size)
+                let mask = hasMask ? MaskRenderer.png(strokes: strokes, size: size, crop: crop) : nil
                 let req = EditRequest(model: model, prompt: prompt, image: upload,
                                       imageMime: hasMask ? "image/png" : "image/jpeg", mask: mask,
                                       size: size, quality: quality, variations: n)
@@ -230,7 +244,8 @@ final class AppStore: ObservableObject {
                     urls.append(u)
                 }
                 return (r, urls)
-            }.value
+            }
+            let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
 
             let actual = result.0.usage.map { CostEstimator.actualCost(model: model, usage: $0) }
             if let usage = result.0.usage {
@@ -241,12 +256,16 @@ final class AppStore: ObservableObject {
                                              quality: quality, estimated: est.dollars, actual: actual,
                                              edits: p.options.summary))
             guard let j = index(id) else { return }
-            photos[j].results.append(contentsOf: result.1)
-            photos[j].chosen = photos[j].results.count - result.1.count
+            let perImage = (actual ?? est.dollars) / Double(max(result.1.count, 1))
+            let versions = result.1.map {
+                EditVersion(url: $0, edits: summary, altered: altered, cost: perImage)
+            }
+            photos[j].results.append(contentsOf: versions)
+            photos[j].chosen = photos[j].results.count - versions.count
             photos[j].status = .done
-            photos[j].lastCost = actual ?? est.dollars
-            photos[j].lastEdits = p.options.summary
         } catch is CancellationError {
+            if let j = index(id) { photos[j].status = .idle }
+        } catch let e as URLError where e.code == .cancelled {
             if let j = index(id) { photos[j].status = .idle }
         } catch {
             if let j = index(id) { photos[j].status = .failed(error.localizedDescription) }
@@ -268,11 +287,9 @@ final class AppStore: ObservableObject {
                         try ImageTools.jpeg(img, quality: 0.93).write(to: out)
                     }.value
                     guard let j = self.index(id) else { return }
-                    self.photos[j].results.append(out)
+                    self.photos[j].results.append(EditVersion(url: out, edits: ["local auto-enhance"], altered: false, cost: 0))
                     self.photos[j].chosen = self.photos[j].results.count - 1
                     self.photos[j].status = .done
-                    self.photos[j].lastCost = 0
-                    self.photos[j].lastEdits = ["local auto-enhance"]
                 } catch {
                     if let j = self.index(id) { self.photos[j].status = .failed(error.localizedDescription) }
                 }
@@ -293,23 +310,32 @@ final class AppStore: ObservableObject {
         guard panel.runModal() == .OK, let folder = panel.url else { return }
 
         let longEdge = settings.exportLongEdge > 0 ? settings.exportLongEdge : nil
-        var csv = "file,original,edits,digitally_altered,cost_usd\n"
-        var failures: [String] = []
-        for (n, p) in ready.enumerated() {
-            let altered = p.options.isMaterialAlteration
-            let suffix = (altered && settings.addDisclosureToFilename) ? "-virtually-enhanced" : ""
-            let name = String(format: "%02d-%@%@.jpg", n + 1, p.name, suffix)
-            do {
-                try ImageTools.export(p.chosenResult!, to: folder.appendingPathComponent(name), longEdge: longEdge)
-                let edits = p.lastEdits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
-                csv += "\"\(name)\",\"\(p.url.lastPathComponent)\",\"\(edits)\",\(altered ? "yes" : "no"),\(String(format: "%.4f", p.lastCost ?? 0))\n"
-            } catch {
-                failures.append(p.name)
-            }
+        let addSuffix = settings.addDisclosureToFilename
+        let jobs = ready.map { ($0.name, $0.url.lastPathComponent, $0.chosenVersion!) }
+        isRunning = true
+        Task {
+            let failures = await Task.detached(priority: .userInitiated) { () -> [String] in
+                var csv = "file,original,edits,digitally_altered,cost_usd\n"
+                var failures: [String] = []
+                for (n, job) in jobs.enumerated() {
+                    let (base, original, v) = job
+                    let suffix = (v.altered && addSuffix) ? "-virtually-enhanced" : ""
+                    let name = String(format: "%02d-%@%@.jpg", n + 1, base, suffix)
+                    do {
+                        try ImageTools.export(v.url, to: folder.appendingPathComponent(name), longEdge: longEdge)
+                        let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
+                        csv += "\"\(name)\",\"\(original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(String(format: "%.4f", v.cost))\n"
+                    } catch {
+                        failures.append(base)
+                    }
+                }
+                try? csv.write(to: folder.appendingPathComponent("edit-log.csv"), atomically: true, encoding: .utf8)
+                return failures
+            }.value
+            isRunning = false
+            NSWorkspace.shared.activateFileViewerSelecting([folder])
+            if !failures.isEmpty { alert = "Could not export: \(failures.joined(separator: ", "))" }
         }
-        try? csv.write(to: folder.appendingPathComponent("edit-log.csv"), atomically: true, encoding: .utf8)
-        NSWorkspace.shared.activateFileViewerSelecting([folder])
-        if !failures.isEmpty { alert = "Could not export: \(failures.joined(separator: ", "))" }
     }
 }
 #endif

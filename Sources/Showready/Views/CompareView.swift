@@ -1,6 +1,6 @@
 #if os(macOS)
 import SwiftUI
-import ListingPolishCore
+import ShowreadyCore
 
 /// Before/after viewer with a draggable divider, plus a brush to mark objects to remove.
 struct CompareView: View {
@@ -104,16 +104,16 @@ struct CompareView: View {
         })
         .overlay(alignment: .topLeading) {
             HStack {
-                tag("Edited")
+                cornerLabel("Edited")
                 Spacer()
-                tag("Original")
+                cornerLabel("Original")
             }
             .frame(width: rect.width - 20)
             .position(x: rect.midX, y: rect.minY + 20)
         }
     }
 
-    private func tag(_ s: String) -> some View {
+    private func cornerLabel(_ s: String) -> some View {
         Text(s).font(.caption.bold()).padding(.horizontal, 8).padding(.vertical, 3)
             .background(.black.opacity(0.55), in: Capsule()).foregroundStyle(.white)
     }

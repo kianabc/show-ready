@@ -28,17 +28,17 @@ jobs:
         run: |
           ./scripts/build-app.sh
           # ditto keeps the executable bit and code signature, which a plain artifact upload loses.
-          ditto -c -k --keepParent "build/Listing Polish.app" "build/Listing-Polish.zip"
+          ditto -c -k --keepParent "build/Showready.app" "build/Showready.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: Listing-Polish
-          path: build/Listing-Polish.zip
+          name: Showready
+          path: build/Showready.zip
       - name: Publish test build
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create latest build/Listing-Polish.zip \
+          gh release create latest build/Showready.zip \
             --title "Latest test build" --prerelease --target "$GITHUB_SHA" \
-            --notes "Built from ${GITHUB_SHA::7}. Unzip, then right-click Listing Polish and choose Open the first time."
+            --notes "Built from ${GITHUB_SHA::7}. Unzip, then right-click Showready and choose Open the first time."

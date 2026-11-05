@@ -1,6 +1,6 @@
 #if os(macOS)
 import SwiftUI
-import ListingPolishCore
+import ShowreadyCore
 
 /// Right-hand panel: what to change, which model, what it will cost.
 struct EditPanel: View {
@@ -65,13 +65,17 @@ struct EditPanel: View {
                     Text("3840 px (4K, experimental)").tag(3840)
                 }
             } else {
-                Text("This model outputs at most 1536×1024. Photos that aren't 3:2 may be re-framed.")
+                Text("This model outputs at most 1536×1024. Photos that aren't 3:2 are center-cropped to fit.")
                     .font(.caption).foregroundStyle(.orange)
             }
             Stepper("Versions per photo: \(store.settings.variations)", value: $store.settings.variations, in: 1...4)
             if !store.model.notes.isEmpty {
                 Text(store.model.notes).font(.caption).foregroundStyle(.secondary)
             }
+        }
+        .onChange(of: store.settings.modelID) {
+            // Keep the quality picker valid when a model offers fewer levels.
+            store.settings.quality = store.effectiveQuality
         }
     }
 

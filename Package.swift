@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "ListingPolish",
+    name: "Showready",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "ListingPolish", targets: ["ListingPolish"]),
-        .library(name: "ListingPolishCore", targets: ["ListingPolishCore"]),
+        .executable(name: "Showready", targets: ["Showready"]),
+        .library(name: "ShowreadyCore", targets: ["ShowreadyCore"]),
     ],
     targets: [
         // Pure Swift logic: models, pricing, prompts, API request/response. No AppKit.
-        .target(name: "ListingPolishCore"),
+        .target(name: "ShowreadyCore"),
         // The macOS SwiftUI app.
         .executableTarget(
-            name: "ListingPolish",
-            dependencies: ["ListingPolishCore"]
+            name: "Showready",
+            dependencies: ["ShowreadyCore"]
         ),
         .testTarget(
-            name: "ListingPolishCoreTests",
-            dependencies: ["ListingPolishCore"]
+            name: "ShowreadyCoreTests",
+            dependencies: ["ShowreadyCore"]
         ),
     ]
 )

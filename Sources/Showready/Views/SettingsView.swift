@@ -1,6 +1,6 @@
 #if os(macOS)
 import SwiftUI
-import ListingPolishCore
+import ShowreadyCore
 
 struct SettingsView: View {
     var body: some View {
@@ -25,7 +25,11 @@ struct APIKeySettings: View {
             Section {
                 SecureField("OpenAI API key (sk-…)", text: $draft)
                 HStack {
-                    Button("Save") { store.apiKey = draft; status = draft.isEmpty ? "Key removed." : "Saved to Keychain." }
+                    Button("Save") {
+                        draft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        store.apiKey = draft
+                        status = draft.isEmpty ? "Key removed." : "Saved to Keychain."
+                    }
                     Button("Test key") { Task { await test() } }.disabled(draft.isEmpty || testing)
                     if testing { ProgressView().controlSize(.small) }
                     Text(status).foregroundStyle(.secondary)

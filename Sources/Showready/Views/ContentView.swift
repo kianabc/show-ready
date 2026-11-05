@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 import UniformTypeIdentifiers
-import ListingPolishCore
+import ShowreadyCore
 
 struct ContentView: View {
     @EnvironmentObject var store: AppStore
@@ -41,7 +41,7 @@ struct ContentView: View {
             }
             return true
         }
-        .alert("Listing Polish", isPresented: Binding(get: { store.alert != nil }, set: { if !$0 { store.alert = nil } })) {
+        .alert("Showready", isPresented: Binding(get: { store.alert != nil }, set: { if !$0 { store.alert = nil } })) {
             Button("OK") { store.alert = nil }
         } message: { Text(store.alert ?? "") }
         .confirmationDialog("Run this batch?",

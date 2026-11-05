@@ -1,6 +1,6 @@
 #if os(macOS)
-ListingPolishApp.main()
+ShowreadyApp.main()
 #else
 // The app is macOS only. This lets `swift test` build the core module on Linux CI.
-print("ListingPolish is a macOS app.")
+print("Showready is a macOS app.")
 #endif

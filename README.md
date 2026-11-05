@@ -1,4 +1,4 @@
-# Listing Polish
+# Showready
 
 A Mac app that turns owner-shot or amateur real estate photos into clean, MLS-ready images using OpenAI's GPT Image models.
 
@@ -26,7 +26,7 @@ Open in Xcode:
 open Package.swift
 ```
 
-Then pick the **ListingPolish** scheme and press Run.
+Then pick the **Showready** scheme and press Run.
 
 Or build a double-clickable app into `build/`:
 
@@ -34,7 +34,7 @@ Or build a double-clickable app into `build/`:
 ./scripts/build-app.sh
 ```
 
-Then add your OpenAI API key in **Listing Polish → Settings → API Key**. It is stored in the macOS Keychain.
+Then add your OpenAI API key in **Showready → Settings → API Key**. It is stored in the macOS Keychain.
 
 ## Costs
 
@@ -51,8 +51,8 @@ For the newest models OpenAI has not published per-image token counts, so the fi
 
 ## Project layout
 
-- `Sources/ListingPolishCore` holds the model catalog, pricing math, prompt builder and OpenAI client. It is plain Swift with unit tests.
-- `Sources/ListingPolish` holds the SwiftUI app, image processing (Core Image, Vision) and Keychain storage.
+- `Sources/ShowreadyCore` holds the model catalog, pricing math, prompt builder and OpenAI client. It is plain Swift with unit tests.
+- `Sources/Showready` holds the SwiftUI app, image processing (Core Image, Vision) and Keychain storage.
 
 Run the tests:
 

@@ -2,17 +2,17 @@
 import SwiftUI
 import AppKit
 
-struct ListingPolishApp: App {
+struct ShowreadyApp: App {
     @StateObject private var store = AppStore()
 
     init() {
         // Needed when launched with `swift run` instead of as a bundled .app.
         NSApplication.shared.setActivationPolicy(.regular)
-        DispatchQueue.main.async { NSApplication.shared.activate(ignoringOtherApps: true) }
+        DispatchQueue.main.async { NSApp.activate() }
     }
 
     var body: some Scene {
-        WindowGroup("Listing Polish") {
+        WindowGroup("Showready") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 1100, minHeight: 700)

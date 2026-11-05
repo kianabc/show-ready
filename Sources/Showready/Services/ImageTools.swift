@@ -5,7 +5,7 @@ import CoreImage.CIFilterBuiltins
 import ImageIO
 import UniformTypeIdentifiers
 import Vision
-import ListingPolishCore
+import ShowreadyCore
 
 enum ImageToolsError: LocalizedError {
     case unreadable(String)
@@ -58,17 +58,28 @@ enum ImageTools {
         return f.outputImage ?? img
     }
 
-    /// Resizes to an exact pixel size (used for mask-matched uploads).
+    /// The part of the source (normalized, top-left origin) that survives a scale-to-fill
+    /// and center crop to `target`. Nearly the whole frame for custom-size models.
+    static func fillCrop(source: PixelSize, target: PixelSize) -> CGRect {
+        let scale = max(CGFloat(target.width) / CGFloat(source.width), CGFloat(target.height) / CGFloat(source.height))
+        let fw = CGFloat(target.width) / (CGFloat(source.width) * scale)
+        let fh = CGFloat(target.height) / (CGFloat(source.height) * scale)
+        return CGRect(x: (1 - fw) / 2, y: (1 - fh) / 2, width: fw, height: fh)
+    }
+
+    /// Scales to fill an exact pixel size and center-crops the overflow, so nothing is stretched.
     static func resized(_ img: CIImage, to size: PixelSize) -> CIImage {
-        let sx = CGFloat(size.width) / img.extent.width
-        let sy = CGFloat(size.height) / img.extent.height
+        let tw = CGFloat(size.width), th = CGFloat(size.height)
+        let scale = max(tw / img.extent.width, th / img.extent.height)
         let f = CIFilter.lanczosScaleTransform()
         f.inputImage = img
-        f.scale = Float(sy)
-        f.aspectRatio = Float(sx / sy)
-        let out = (f.outputImage ?? img)
-        return out.cropped(to: CGRect(x: out.extent.origin.x, y: out.extent.origin.y,
-                                      width: CGFloat(size.width), height: CGFloat(size.height)))
+        f.scale = Float(scale)
+        f.aspectRatio = 1
+        let out = f.outputImage ?? img
+        let x = (out.extent.minX + (out.extent.width - tw) / 2).rounded(.down)
+        let y = (out.extent.minY + (out.extent.height - th) / 2).rounded(.down)
+        let cropped = out.cropped(to: CGRect(x: x, y: y, width: tw, height: th))
+        return cropped.transformed(by: CGAffineTransform(translationX: -x, y: -y))
     }
 
     /// JPEG with no source metadata (GPS, camera serials, owner names).
@@ -163,7 +174,9 @@ struct MaskStroke: Equatable, Codable {
 
 enum MaskRenderer {
     /// OpenAI masks: fully transparent where the model may edit, opaque elsewhere.
-    static func png(strokes: [MaskStroke], size: PixelSize) -> Data? {
+    /// `crop` is the visible part of the source (from `ImageTools.fillCrop`); strokes are mapped into it.
+    static func png(strokes: [MaskStroke], size: PixelSize,
+                    crop: CGRect = CGRect(x: 0, y: 0, width: 1, height: 1)) -> Data? {
         guard !strokes.isEmpty,
               let ctx = CGContext(data: nil, width: size.width, height: size.height, bitsPerComponent: 8,
                                   bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -175,8 +188,12 @@ enum MaskRenderer {
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
         for s in strokes {
-            ctx.setLineWidth(s.radius * 2 * w)
-            let pts = s.points.map { CGPoint(x: $0.x * w, y: (1 - $0.y) * h) }
+            ctx.setLineWidth(s.radius / crop.width * 2 * w)
+            let pts = s.points.map { p -> CGPoint in
+                let x = (p.x - crop.minX) / crop.width
+                let y = (p.y - crop.minY) / crop.height
+                return CGPoint(x: x * w, y: (1 - y) * h)
+            }
             guard let first = pts.first else { continue }
             ctx.beginPath()
             ctx.move(to: first)

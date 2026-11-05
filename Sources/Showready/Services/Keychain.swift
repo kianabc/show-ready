@@ -4,7 +4,7 @@ import Security
 
 /// Stores the OpenAI key in the macOS Keychain, never in plain files.
 enum Keychain {
-    private static let service = "com.listingpolish.openai"
+    private static let service = "com.showready.openai"
     private static let account = "api-key"
 
     static func load() -> String {

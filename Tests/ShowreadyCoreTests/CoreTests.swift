@@ -1,5 +1,5 @@
 import XCTest
-@testable import ListingPolishCore
+@testable import ShowreadyCore
 
 final class CoreTests: XCTestCase {
     let gpt2 = ModelCatalog.defaults.first { $0.id == "gpt-image-2" }!
