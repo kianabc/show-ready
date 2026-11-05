@@ -32,11 +32,13 @@ fetch() {
     sleep 1
   done < <(echo "$json" | jq -r '.query.pages // {} | to_entries[] | .value
       | select(.imageinfo[0].mime == "image/jpeg" and .imageinfo[0].width >= 1600 and .imageinfo[0].width > .imageinfo[0].height)
+      | select(.title | test("drawing|design|plan|sketch|book|illustration|\\(1[0-9]{3}\\)"; "i") | not)
       | [.title, .imageinfo[0].thumburl, (.imageinfo[0].extmetadata.LicenseShortName.value // "?"),
          ((.imageinfo[0].extmetadata.Artist.value // "?") | gsub("<[^>]*>"; ""))] | @tsv')
 }
 
 fetch "living room interior house" "interior-living" 1
-fetch "kitchen interior home" "interior-kitchen" 1
-fetch "house front exterior suburban" "exterior-front" 1
+fetch "modern kitchen interior" "interior-kitchen" 1
+fetch "single-family house front yard photograph" "exterior-front" 1
+fetch "ranch style house exterior" "exterior-ranch" 1
 ls -la "$DEST"
