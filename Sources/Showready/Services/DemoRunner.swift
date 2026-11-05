@@ -42,7 +42,7 @@ enum DemoRunner {
         } else {
             note("No AI run (set SHOWREADY_DEMO_AI=1 and OPENAI_API_KEY). Running free local enhance.")
             store.quickEnhance(ids)
-            await waitUntil(120) { store.photos.allSatisfy { $0.status != .working } }
+            await waitUntil(120) { store.photos.allSatisfy { $0.status != .working && $0.status != .queued } }
         }
         for p in store.photos {
             switch p.status {

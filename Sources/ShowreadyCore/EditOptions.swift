@@ -53,6 +53,8 @@ public struct EditOptions: Codable, Hashable, Sendable {
     public var lensCorrection = true
     public var straightenVerticals = false
     public var removeHarshShadows = true
+    /// Watermarks, logos, address captions and stamps overlaid on the photo itself.
+    public var removeOverlays = true
 
     // Interior.
     public var declutter: DeclutterLevel = .light
@@ -89,6 +91,7 @@ public struct EditOptions: Codable, Hashable, Sendable {
         if lensCorrection { s.append("lens correction") }
         if straightenVerticals { s.append("vertical correction") }
         if removeHarshShadows { s.append("shadow softening") }
+        if removeOverlays { s.append("watermark/overlay text removed") }
         switch kind {
         case .interior:
             if declutter != .none { s.append("declutter (\(declutter.rawValue))") }

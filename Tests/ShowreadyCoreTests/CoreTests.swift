@@ -65,6 +65,7 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(p.contains("skip that edit"))
         XCTAssertTrue(p.contains("same number of doors, windows, steps"))
         XCTAssertTrue(p.contains("soft white clouds"))
+        XCTAssertTrue(p.contains("watermarks"))
         XCTAssertTrue(p.contains("basketball hoop"))
         XCTAssertFalse(p.contains("Window pull"))
         XCTAssertTrue(o.isMaterialAlteration)

@@ -24,9 +24,13 @@ struct PhotoItem: Identifiable {
     var size: PixelSize
     var thumbnail: NSImage?
     var options: EditOptions
+    /// Listing this photo belongs to; empty means unsorted.
+    var listing: String = ""
     var status: PhotoStatus = .idle
     var results: [EditVersion] = []  // one per variation, newest run last
     var chosen: Int = 0
+    /// The user approved the chosen version. Cleared when the chosen version changes.
+    var approved = false
     var maskStrokes: [MaskStroke] = []
 
     var chosenVersion: EditVersion? { results.indices.contains(chosen) ? results[chosen] : nil }
@@ -35,7 +39,7 @@ struct PhotoItem: Identifiable {
 }
 
 /// One edited result, with what was asked for when it was made (for the MLS disclosure log).
-struct EditVersion: Equatable {
+struct EditVersion: Equatable, Sendable {
     var url: URL
     var edits: [String]
     var altered: Bool
@@ -58,6 +62,10 @@ struct AppSettings: Codable, Equatable {
     var exportLongEdge = 2048          // common MLS upload size; 0 keeps model size
     var confirmAbove = 5.0             // ask before batches above this many dollars
     var addDisclosureToFilename = false
+    // The user's favorite edit settings, used for every newly imported photo.
+    // Optional so settings saved by older builds still decode.
+    var defaultInteriorOptions: EditOptions? = nil
+    var defaultExteriorOptions: EditOptions? = nil
 }
 
 @MainActor
@@ -72,6 +80,9 @@ final class AppStore: ObservableObject {
     @Published var isRunning = false
     @Published var alert: String?
     @Published var pendingBatch: (ids: [PhotoItem.ID], estimate: Double)?
+    @Published var listings: [String] = []
+    /// New imports go into this listing; nil means unsorted.
+    @Published var currentListing: String?
 
     private var runTask: Task<Void, Never>?
     let workDir: URL
@@ -130,6 +141,66 @@ final class AppStore: ObservableObject {
 
     var selectedIDs: [PhotoItem.ID] { photos.map(\.id).filter { selection.contains($0) } }
 
+    // MARK: Default edit settings (the user's presets)
+
+    /// What a newly imported photo starts with: the saved preset for its kind, or the built-in defaults.
+    func defaultOptions(for kind: PhotoKind) -> EditOptions {
+        var o = (kind == .interior ? settings.defaultInteriorOptions : settings.defaultExteriorOptions)
+            ?? EditOptions.defaults(for: kind)
+        o.kind = kind
+        o.customInstructions = ""
+        return o
+    }
+
+    /// Saves one photo's options as the preset for new photos of that kind.
+    func saveDefaultOptions(from id: PhotoItem.ID) {
+        guard let src = photos.first(where: { $0.id == id }) else { return }
+        var o = src.options
+        o.customInstructions = ""   // photo-specific notes don't belong in a preset
+        if o.kind == .interior { settings.defaultInteriorOptions = o }
+        else { settings.defaultExteriorOptions = o }
+    }
+
+    /// Copies one photo's options to every photo of the same kind,
+    /// keeping each photo's own custom instructions.
+    func applyOptionsToAll(from id: PhotoItem.ID) {
+        guard let src = photos.first(where: { $0.id == id }) else { return }
+        for i in photos.indices where photos[i].options.kind == src.options.kind && photos[i].id != id {
+            var o = src.options
+            o.customInstructions = photos[i].options.customInstructions
+            photos[i].options = o
+        }
+    }
+
+    // MARK: Listings
+
+    func addListing(_ name: String) {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty else { return }
+        if !listings.contains(n) { listings.append(n) }
+        currentListing = n
+    }
+
+    func moveToListing(_ ids: [PhotoItem.ID], listing: String) {
+        for i in photos.indices where ids.contains(photos[i].id) { photos[i].listing = listing }
+    }
+
+    /// Sidebar sections. A single unnamed section until the first listing exists.
+    var listingSections: [(name: String, items: [PhotoItem])] {
+        let hasListings = !listings.isEmpty || photos.contains { !$0.listing.isEmpty }
+        guard hasListings else { return [("", photos)] }
+        var names = listings
+        for p in photos where !p.listing.isEmpty && !names.contains(p.listing) { names.append(p.listing) }
+        var out: [(String, [PhotoItem])] = names.map { n in (n, photos.filter { $0.listing == n }) }
+        let unsorted = photos.filter { $0.listing.isEmpty }
+        if !unsorted.isEmpty { out.append(("Unsorted", unsorted)) }
+        return out
+    }
+
+    // MARK: Approval
+
+    var approvedIDs: [PhotoItem.ID] { photos.filter { $0.approved && $0.chosenResult != nil }.map(\.id) }
+
     // MARK: Import
 
     func importURLs(_ urls: [URL]) {
@@ -145,21 +216,41 @@ final class AppStore: ObservableObject {
         }
         let exts: Set<String> = ["jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "dng", "cr2", "cr3", "nef", "arw"]
         let known = Set(photos.map(\.url))
-        for url in files where exts.contains(url.pathExtension.lowercased()) && !known.contains(url) {
-            Task {
-                let loaded = await Task.detached(priority: .userInitiated) { () -> (PixelSize, NSImage?, PhotoKind)? in
-                    guard let size = ImageTools.pixelSize(url) else { return nil }
-                    return (size, ImageTools.thumbnail(url), ImageTools.guessKind(url))
-                }.value
-                guard let loaded else {
-                    self.alert = "Could not read \(url.lastPathComponent)."
-                    return
+        let newFiles = files.filter { exts.contains($0.pathExtension.lowercased()) && !known.contains($0) }
+        guard !newFiles.isEmpty else { return }
+        Task {
+            // Load a few photos at a time. One decode + Vision classification per
+            // file is fine; dozens at once spike memory and get the app killed.
+            let window = 3
+            var unreadable: [String] = []
+            await withTaskGroup(of: (URL, (PixelSize, NSImage?, PhotoKind)?).self) { group in
+                var iterator = newFiles.makeIterator()
+                func addNext() {
+                    guard let url = iterator.next() else { return }
+                    group.addTask {
+                        await Task.detached(priority: .userInitiated) { () -> (URL, (PixelSize, NSImage?, PhotoKind)?) in
+                            guard let size = ImageTools.pixelSize(url) else { return (url, nil) }
+                            return (url, (size, ImageTools.thumbnail(url), ImageTools.guessKind(url)))
+                        }.value
+                    }
                 }
-                let (size, thumb, kind) = loaded
-                guard !self.photos.contains(where: { $0.url == url }) else { return }
-                self.photos.append(PhotoItem(url: url, size: size, thumbnail: thumb,
-                                             options: .defaults(for: kind)))
-                if self.selection.isEmpty, let first = self.photos.first { self.selection = [first.id] }
+                for _ in 0..<window { addNext() }
+                for await (url, loaded) in group {
+                    if let (size, thumb, kind) = loaded {
+                        if !self.photos.contains(where: { $0.url == url }) {
+                            self.photos.append(PhotoItem(url: url, size: size, thumbnail: thumb,
+                                                         options: self.defaultOptions(for: kind),
+                                                         listing: self.currentListing ?? ""))
+                            if self.selection.isEmpty, let first = self.photos.first { self.selection = [first.id] }
+                        }
+                    } else {
+                        unreadable.append(url.lastPathComponent)
+                    }
+                    addNext()
+                }
+            }
+            if !unreadable.isEmpty {
+                self.alert = "Could not read: \(unreadable.joined(separator: ", "))"
             }
         }
     }
@@ -285,23 +376,45 @@ final class AppStore: ObservableObject {
     /// Free local enhancement, no API call.
     func quickEnhance(_ ids: [PhotoItem.ID]) {
         let level = settings.levelHorizonLocally
-        for id in ids {
-            guard let i = index(id) else { continue }
-            let url = photos[i].url
-            photos[i].status = .working
-            let out = workDir.appendingPathComponent("\(UUID().uuidString).jpg")
-            Task {
-                do {
-                    try await Task.detached(priority: .userInitiated) {
-                        let img = try ImageTools.quickEnhance(url, levelHorizon: level)
-                        try ImageTools.jpeg(img, quality: 0.93).write(to: out)
-                    }.value
-                    guard let j = self.index(id) else { return }
-                    self.photos[j].results.append(EditVersion(url: out, edits: ["local auto-enhance"], altered: false, cost: 0))
-                    self.photos[j].chosen = self.photos[j].results.count - 1
-                    self.photos[j].status = .done
-                } catch {
-                    if let j = self.index(id) { self.photos[j].status = .failed(error.localizedDescription) }
+        let jobs: [(PhotoItem.ID, URL)] = ids.compactMap { id in index(id).map { (id, photos[$0].url) } }
+        guard !jobs.isEmpty else { return }
+        for (id, _) in jobs { if let i = index(id) { photos[i].status = .queued } }
+        let workDir = self.workDir
+        Task {
+            // A couple at a time: each job renders the photo at full resolution,
+            // and dozens at once spike memory and freeze the Mac.
+            let window = 2
+            await withTaskGroup(of: (PhotoItem.ID, Result<URL, Error>).self) { group in
+                var iterator = jobs.makeIterator()
+                @MainActor func addNext() {
+                    guard let (id, url) = iterator.next() else { return }
+                    if let i = self.index(id) { self.photos[i].status = .working }
+                    group.addTask {
+                        await Task.detached(priority: .userInitiated) {
+                            do {
+                                let out = workDir.appendingPathComponent("\(UUID().uuidString).jpg")
+                                let img = try ImageTools.quickEnhance(url, levelHorizon: level)
+                                try ImageTools.jpeg(img, quality: 0.93).write(to: out)
+                                return (id, .success(out))
+                            } catch {
+                                return (id, .failure(error))
+                            }
+                        }.value
+                    }
+                }
+                for _ in 0..<window { addNext() }
+                for await (id, result) in group {
+                    if let j = self.index(id) {
+                        switch result {
+                        case .success(let out):
+                            self.photos[j].results.append(EditVersion(url: out, edits: ["local auto-enhance"], altered: false, cost: 0))
+                            self.photos[j].chosen = self.photos[j].results.count - 1
+                            self.photos[j].status = .done
+                        case .failure(let e):
+                            self.photos[j].status = .failed(e.localizedDescription)
+                        }
+                    }
+                    addNext()
                 }
             }
         }
@@ -309,48 +422,80 @@ final class AppStore: ObservableObject {
 
     // MARK: Export
 
+    /// Exports every approved photo in one go.
+    func saveApproved() {
+        let ids = approvedIDs
+        guard !ids.isEmpty else {
+            alert = "No approved photos yet. Open a photo and press Approve (or the A key) on the edits you like."
+            return
+        }
+        export(ids)
+    }
+
     func export(_ ids: [PhotoItem.ID]) {
         let ready = photos.filter { ids.contains($0.id) && $0.chosenResult != nil }
         guard !ready.isEmpty else { alert = "Nothing to export yet. Edit some photos first."; return }
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Export Here"
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        // Hop off SwiftUI's action dispatch before touching NSOpenPanel; creating
+        // one inside the update transaction deadlocks (see ImportPanel.run).
+        DispatchQueue.main.async { [self] in
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Export Here"
+            guard panel.runModal() == .OK, let folder = panel.url else { return }
 
-        Task {
-            let failures = await exportTo(folder, ids: ready.map(\.id))
-            NSWorkspace.shared.activateFileViewerSelecting([folder])
-            if !failures.isEmpty { alert = "Could not export: \(failures.joined(separator: ", "))" }
+            Task {
+                let failures = await exportTo(folder, ids: ready.map(\.id))
+                NSWorkspace.shared.activateFileViewerSelecting([folder])
+                if !failures.isEmpty { alert = "Could not export: \(failures.joined(separator: ", "))" }
+            }
         }
     }
 
-    /// Writes chosen versions plus edit-log.csv into `folder`. Returns names that failed.
+    /// Writes chosen versions plus edit-log.csv into `folder`. Photos spanning
+    /// several listings land in one subfolder per listing. Returns names that failed.
     func exportTo(_ folder: URL, ids: [PhotoItem.ID]) async -> [String] {
+        struct Job: Sendable {
+            var base: String; var original: String; var version: EditVersion
+            var approved: Bool; var listing: String
+        }
         let ready = photos.filter { ids.contains($0.id) && $0.chosenVersion != nil }
         let longEdge = settings.exportLongEdge > 0 ? settings.exportLongEdge : nil
         let addSuffix = settings.addDisclosureToFilename
-        let jobs = ready.map { ($0.name, $0.url.lastPathComponent, $0.chosenVersion!) }
+        let jobs = ready.map {
+            Job(base: $0.name, original: $0.url.lastPathComponent, version: $0.chosenVersion!,
+                approved: $0.approved, listing: $0.listing)
+        }
         isRunning = true
         defer { isRunning = false }
         return await Task.detached(priority: .userInitiated) { () -> [String] in
-            var csv = "file,original,edits,digitally_altered,structure_check,cost_usd\n"
             var failures: [String] = []
-            for (n, job) in jobs.enumerated() {
-                let (base, original, v) = job
-                let suffix = (v.altered && addSuffix) ? "-virtually-enhanced" : ""
-                let name = String(format: "%02d-%@%@.jpg", n + 1, base, suffix)
-                do {
-                    try ImageTools.export(v.url, to: folder.appendingPathComponent(name), longEdge: longEdge)
-                    let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
-                    let check = v.structureScore.map { String(format: $0 < StructureCheck.warnBelow ? "REVIEW %.2f" : "ok %.2f", $0) } ?? ""
-                    csv += "\"\(name)\",\"\(original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(check),\(String(format: "%.4f", v.cost))\n"
-                } catch {
-                    failures.append(base)
+            let split = Set(jobs.map(\.listing)).count > 1
+            for (listing, jobs) in Dictionary(grouping: jobs, by: \.listing).sorted(by: { $0.key < $1.key }) {
+                var dir = folder
+                if split {
+                    let name = listing.isEmpty ? "Unsorted"
+                        : listing.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+                    dir = folder.appendingPathComponent(name, isDirectory: true)
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 }
+                var csv = "file,original,edits,digitally_altered,approved,structure_check,cost_usd\n"
+                for (n, job) in jobs.enumerated() {
+                    let v = job.version
+                    let suffix = (v.altered && addSuffix) ? "-virtually-enhanced" : ""
+                    let name = String(format: "%02d-%@%@.jpg", n + 1, job.base, suffix)
+                    do {
+                        try ImageTools.export(v.url, to: dir.appendingPathComponent(name), longEdge: longEdge)
+                        let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
+                        let check = v.structureScore.map { String(format: $0 < StructureCheck.warnBelow ? "REVIEW %.2f" : "ok %.2f", $0) } ?? ""
+                        csv += "\"\(name)\",\"\(job.original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(job.approved ? "yes" : "no"),\(check),\(String(format: "%.4f", v.cost))\n"
+                    } catch {
+                        failures.append(job.base)
+                    }
+                }
+                try? csv.write(to: dir.appendingPathComponent("edit-log.csv"), atomically: true, encoding: .utf8)
             }
-            try? csv.write(to: folder.appendingPathComponent("edit-log.csv"), atomically: true, encoding: .utf8)
             return failures
         }.value
     }

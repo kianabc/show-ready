@@ -15,7 +15,7 @@ public enum PromptBuilder {
     - Do not add furniture, decor or objects unless explicitly asked below.
     - Keep materials, colors and finishes of permanent surfaces true to life. Do not hide damage or defects.
     - The result must look like a real, natural photograph taken by a professional real estate photographer. No illustration, no HDR halos, no oversaturation, no visible artifacts.
-    - Keep fine detail sharp. Text on objects that remain should stay legible and unchanged.
+    - Keep fine detail sharp. Text on real objects in the scene that remain should stay legible and unchanged. (Overlays printed on the photo itself are not scene objects.)
     """
 
     public static func prompt(for o: EditOptions, hasMask: Bool = false) -> String {
@@ -39,6 +39,9 @@ public enum PromptBuilder {
         }
         if o.removeHarshShadows {
             lines.append("- Soften harsh, distracting shadows such as camera flash shadows and the photographer's shadow. Keep the natural shading that shows the shape of the \(o.kind == .interior ? "room" : "house and landscaping").")
+        }
+        if o.removeOverlays {
+            lines.append("- Remove ALL graphics overlaid on the photo itself, wherever they are in the frame: watermarks, website and brokerage logos, address or caption text in the corners, MLS stamps, date stamps and banners, including partly transparent ones. These overlays are not part of the scene; rebuild the image behind them. Do not remove physical signs, house numbers or text on real objects in the scene.")
         }
 
         switch o.kind {

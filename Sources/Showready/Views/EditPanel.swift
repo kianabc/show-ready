@@ -5,6 +5,7 @@ import ShowreadyCore
 /// Right-hand panel: what to change, which model, what it will cost.
 struct EditPanel: View {
     @EnvironmentObject var store: AppStore
+    @State private var defaultsSaved = false
 
     private var primaryID: PhotoItem.ID? { store.selectedIDs.first }
 
@@ -33,7 +34,7 @@ struct EditPanel: View {
                 get: { p.options.kind },
                 set: { k in
                     if let i = store.index(p.id) {
-                        var o = EditOptions.defaults(for: k)
+                        var o = store.defaultOptions(for: k)
                         o.customInstructions = store.photos[i].options.customInstructions
                         store.photos[i].options = o
                     }
@@ -46,6 +47,15 @@ struct EditPanel: View {
                     store.applyOptionsToSelection(from: p.id)
                 }
             }
+            Button("Apply these edits to every \(p.options.kind.label.lowercased()) photo") {
+                store.applyOptionsToAll(from: p.id)
+            }
+            Button(defaultsSaved ? "Saved ✓" : "Save as my default for \(p.options.kind.label.lowercased())s") {
+                store.saveDefaultOptions(from: p.id)
+                defaultsSaved = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { defaultsSaved = false }
+            }
+            .help("New \(p.options.kind.label.lowercased()) photos you import will start with these settings, in this and future sessions.")
         }
     }
 
@@ -132,6 +142,8 @@ struct OptionsForm: View {
             Toggle("Straighten vertical lines", isOn: $o.straightenVerticals)
                 .help("Standard in professional real estate photos. Changes perspective slightly, so it is off by default.")
             Toggle("Soften harsh shadows", isOn: $o.removeHarshShadows)
+            Toggle("Remove watermarks and overlay text", isOn: $o.removeOverlays)
+                .help("Watermarks, site logos, address captions and stamps printed on the photo. Signs and house numbers in the scene itself are kept.")
         }
         if o.kind == .interior {
             Section("Interior") {

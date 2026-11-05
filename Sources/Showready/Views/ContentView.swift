@@ -63,6 +63,12 @@ struct ContentView: View {
                 ProgressView().controlSize(.small)
                 Button { store.cancel() } label: { Label("Stop", systemImage: "stop.fill") }
             }
+            Button { store.saveApproved() } label: {
+                Label("Save Approved", systemImage: "checkmark.seal")
+            }
+            .disabled(store.approvedIDs.isEmpty)
+            .help(store.approvedIDs.isEmpty ? "Approve edits first (A in the compare view)"
+                                            : "Save all \(store.approvedIDs.count) approved photos")
             Button { store.export(store.selectedIDs.isEmpty ? store.photos.map(\.id) : store.selectedIDs) } label: {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
@@ -92,41 +98,27 @@ struct EmptyStateView: View {
 
 struct LibraryView: View {
     @EnvironmentObject var store: AppStore
+    @State private var showNewListing = false
+    @State private var newListingName = ""
 
     var body: some View {
         List(selection: $store.selection) {
-            ForEach(store.photos) { p in
-                HStack(spacing: 10) {
-                    Image(nsImage: p.thumbnail ?? NSImage())
-                        .resizable().aspectRatio(contentMode: .fill)
-                        .frame(width: 72, height: 50).clipShape(RoundedRectangle(cornerRadius: 4))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(p.name).lineLimit(1)
-                        HStack(spacing: 6) {
-                            Text(p.options.kind.label)
-                            if case .failed = p.status {
-                                Text("Failed").foregroundStyle(.red)
-                            } else if !p.status.label.isEmpty {
-                                Text(p.status.label).foregroundStyle(p.status == .done ? Color.green : Color.orange)
-                            }
-                            if let c = p.lastCost { Text(c.dollarString) }
-                        }
-                        .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .tag(p.id)
-                .contextMenu {
-                    Button("Remove from list") { store.remove([p.id]) }
-                    Button("Show original in Finder") { NSWorkspace.shared.activateFileViewerSelecting([p.url]) }
+            let sections = store.listingSections
+            ForEach(sections, id: \.name) { section in
+                if section.name.isEmpty {
+                    rows(section.items)
+                } else {
+                    Section(section.name) { rows(section.items) }
                 }
             }
-            .onDelete { idx in store.remove(idx.map { store.photos[$0].id }) }
         }
+        .safeAreaInset(edge: .top) { listingBar }
         .safeAreaInset(edge: .bottom) {
             if !store.photos.isEmpty {
                 let total = store.estimate(ids: store.photos.map(\.id))
+                let approved = store.approvedIDs.count
                 HStack {
-                    Text("\(store.photos.count) photos")
+                    Text("\(store.photos.count) photos\(approved > 0 ? ", \(approved) approved" : "")")
                     Spacer()
                     Text("All: ≈\(total.dollarString)")
                 }
@@ -134,6 +126,85 @@ struct LibraryView: View {
                 .padding(8).background(.bar)
             }
         }
+        .alert("New Listing", isPresented: $showNewListing) {
+            TextField("Address or name", text: $newListingName)
+            Button("Create") { store.addListing(newListingName); newListingName = "" }
+            Button("Cancel", role: .cancel) { newListingName = "" }
+        } message: {
+            Text("Photos you import go into the selected listing.")
+        }
+    }
+
+    private var listingBar: some View {
+        HStack {
+            Menu {
+                Button("No listing (unsorted)") { store.currentListing = nil }
+                if !store.listings.isEmpty { Divider() }
+                ForEach(store.listings, id: \.self) { l in
+                    Button(l) { store.currentListing = l }
+                }
+                Divider()
+                Button("New Listing…") { showNewListing = true }
+            } label: {
+                Label(store.currentListing ?? "No listing", systemImage: "folder")
+                    .lineLimit(1)
+            }
+            .help("New photos are imported into this listing")
+            Spacer()
+        }
+        .padding(8).background(.bar)
+    }
+
+    private func rows(_ items: [PhotoItem]) -> some View {
+        ForEach(items) { p in
+            HStack(spacing: 10) {
+                Image(nsImage: p.thumbnail ?? NSImage())
+                    .resizable().aspectRatio(contentMode: .fill)
+                    .frame(width: 72, height: 50).clipShape(RoundedRectangle(cornerRadius: 4))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(p.name).lineLimit(1)
+                        if p.approved {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.green).font(.caption)
+                                .help("Approved")
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Text(p.options.kind.label)
+                        if case .failed = p.status {
+                            Text("Failed").foregroundStyle(.red)
+                        } else if !p.status.label.isEmpty {
+                            Text(p.status.label).foregroundStyle(p.status == .done ? Color.green : Color.orange)
+                        }
+                        if let c = p.lastCost { Text(c.dollarString) }
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .tag(p.id)
+            .contextMenu {
+                if !store.listings.isEmpty {
+                    Menu("Move to listing") {
+                        ForEach(store.listings, id: \.self) { l in
+                            Button(l) { store.moveToListing(targets(p), listing: l) }
+                        }
+                        if !p.listing.isEmpty {
+                            Divider()
+                            Button("Unsorted") { store.moveToListing(targets(p), listing: "") }
+                        }
+                    }
+                }
+                Button("Remove from list") { store.remove(targets(p)) }
+                Button("Show original in Finder") { NSWorkspace.shared.activateFileViewerSelecting([p.url]) }
+            }
+        }
+        .onDelete { idx in store.remove(idx.map { items[$0].id }) }
+    }
+
+    /// The whole selection when the clicked photo is part of it, else just that photo.
+    private func targets(_ p: PhotoItem) -> [PhotoItem.ID] {
+        store.selection.contains(p.id) ? Array(store.selection) : [p.id]
     }
 }
 #endif

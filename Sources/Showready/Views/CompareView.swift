@@ -71,6 +71,10 @@ struct CompareView: View {
             if let r = photo.chosenResult { edited = await load(r) }
             if edited != nil && mode == .original { mode = .compare }
         }
+        .onChange(of: photo.chosen) {
+            // A different version is on screen now; the old approval no longer applies.
+            photo.approved = false
+        }
         .onAppear { installKeyMonitor() }
         .onDisappear {
             if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
@@ -78,18 +82,23 @@ struct CompareView: View {
         }
     }
 
-    /// Left/right arrow keys switch versions, unless the user is typing in a text field.
+    /// Left/right arrows switch versions and A toggles approval,
+    /// unless the user is typing in a text field.
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            guard photo.results.count > 1,
-                  event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+            guard event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
                   !(NSApp.keyWindow?.firstResponder is NSTextView)
             else { return event }
             switch event.keyCode {
-            case 123: stepVersion(-1); return nil   // left arrow
-            case 124: stepVersion(1); return nil    // right arrow
-            default: return event
+            case 123 where photo.results.count > 1: stepVersion(-1); return nil   // left arrow
+            case 124 where photo.results.count > 1: stepVersion(1); return nil    // right arrow
+            default:
+                if event.charactersIgnoringModifiers?.lowercased() == "a", photo.chosenResult != nil {
+                    photo.approved.toggle()
+                    return nil
+                }
+                return event
             }
         }
     }
@@ -113,6 +122,14 @@ struct CompareView: View {
                     .disabled(photo.maskStrokes.isEmpty)
             }
             Spacer()
+            if photo.chosenResult != nil {
+                Toggle(isOn: $photo.approved) {
+                    Label(photo.approved ? "Approved" : "Approve",
+                          systemImage: photo.approved ? "checkmark.seal.fill" : "checkmark.seal")
+                }
+                .toggleStyle(.button).tint(.green)
+                .help("Approve this edit for saving (A)")
+            }
             if photo.results.count > 1 {
                 Button { stepVersion(-1) } label: { Image(systemName: "chevron.left") }
                     .disabled(photo.chosen == 0)

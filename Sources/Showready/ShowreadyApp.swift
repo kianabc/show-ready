@@ -33,12 +33,17 @@ struct ShowreadyApp: App {
 
 enum ImportPanel {
     @MainActor static func run(_ store: AppStore) {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = true
-        panel.allowedContentTypes = ImageTools.supportedTypes
-        panel.prompt = "Import"
-        if panel.runModal() == .OK { store.importURLs(panel.urls) }
+        // Hop off SwiftUI's action dispatch first. NSOpenPanel spins a nested run
+        // loop even during init, which deadlocks inside a SwiftUI update
+        // transaction and freezes the whole app (seen on macOS 26).
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.allowsMultipleSelection = true
+            panel.canChooseDirectories = true
+            panel.allowedContentTypes = ImageTools.supportedTypes
+            panel.prompt = "Import"
+            if panel.runModal() == .OK { store.importURLs(panel.urls) }
+        }
     }
 }
 #endif
