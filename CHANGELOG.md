@@ -3,6 +3,11 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.6.1] — 2026-11-05
+
+### Fixed
+- Virtual staging could redraw the room (moved walls, blocked doors). Staging is now strictly add-only: the prompt locks down the room and requires every door and walkway to stay clear, and staged results get the structure check again so a redrawn room is flagged for review.
+
 ## [0.6.0] — 2026-11-05
 
 ### Added

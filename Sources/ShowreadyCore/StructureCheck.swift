@@ -16,6 +16,12 @@ public enum StructureCheck {
     /// Calibrated on a real repaint (score ~0.1) vs relight-style edits (~0.9).
     public static let warnBelow = 0.5
 
+    /// Virtual staging adds real furniture edges, so honest staged results
+    /// score below `warnBelow` without being redraws; a redrawn room still
+    /// lands near the repaint range (~0.1). Not yet calibrated on staged
+    /// pairs, so this sits well clear of the repaint score.
+    public static let warnBelowStaged = 0.35
+
     /// 0 (different structure) to 1 (same structure).
     /// `a` and `b` are row-major luminance buffers in 0...1, same dimensions.
     public static func score(_ a: [Float], _ b: [Float], width: Int, height: Int) -> Double {

@@ -46,9 +46,14 @@ struct EditVersion: Equatable, Sendable {
     var cost: Double
     /// Edge-similarity to the original (0-1); nil for local edits, which cannot drift.
     var structureScore: Double? = nil
+    /// Staged results legitimately add furniture edges, so they are judged
+    /// against the lower staging threshold instead of the relight one.
+    var staged: Bool = false
 
     /// The AI changed the structure of the scene; the user should review before using it.
-    var structureSuspect: Bool { (structureScore ?? 1) < StructureCheck.warnBelow }
+    var structureSuspect: Bool {
+        (structureScore ?? 1) < (staged ? StructureCheck.warnBelowStaged : StructureCheck.warnBelow)
+    }
 }
 
 /// Settings that persist between launches.
@@ -117,6 +122,8 @@ final class AppStore: ObservableObject {
             var altered: Bool
             var cost: Double
             var structureScore: Double?
+            // Optional so libraries saved by older builds still decode.
+            var staged: Bool?
         }
         struct Photo: Codable {
             var url: URL
@@ -156,7 +163,8 @@ final class AppStore: ObservableObject {
                     chosen: p.chosen, approved: p.approved, maskStrokes: p.maskStrokes,
                     results: p.results.map {
                         LibrarySnapshot.Version(url: $0.url, edits: $0.edits, altered: $0.altered,
-                                                cost: $0.cost, structureScore: $0.structureScore)
+                                                cost: $0.cost, structureScore: $0.structureScore,
+                                                staged: $0.staged)
                     })
             },
             listings: listings,
@@ -182,7 +190,8 @@ final class AppStore: ObservableObject {
             item.results = p.results
                 .filter { FileManager.default.fileExists(atPath: $0.url.path) }
                 .map { EditVersion(url: $0.url, edits: $0.edits, altered: $0.altered,
-                                   cost: $0.cost, structureScore: $0.structureScore) }
+                                   cost: $0.cost, structureScore: $0.structureScore,
+                                   staged: $0.staged ?? false) }
             item.chosen = item.results.indices.contains(p.chosen) ? p.chosen : max(item.results.count - 1, 0)
             // Approval is only meaningful while the approved version still
             // exists; a single surviving version is auto-selected.
@@ -532,10 +541,10 @@ final class AppStore: ObservableObject {
         let sourceSize = p.size
         let summary = p.options.summary
         let altered = p.options.isMaterialAlteration
-        // Staging adds furniture on purpose, so the edge-similarity check
-        // would flag every staged result; a warning that always fires
-        // teaches the user to ignore it. nil means "not checked".
-        let skipStructureCheck = p.options.stagingStyle != .none
+        // Staging adds furniture on purpose, so staged results are judged
+        // against the lower staging threshold — a redrawn room still scores
+        // near zero and must be flagged.
+        let staged = p.options.stagingStyle != .none
 
         do {
             let work = Task.detached(priority: .userInitiated) { () -> (EditResult, [URL], [Double?]) in
@@ -554,8 +563,7 @@ final class AppStore: ObservableObject {
                     urls.append(u)
                 }
                 let scores: [Double?] = urls.map {
-                    skipStructureCheck ? nil
-                        : ImageTools.structureScore(sourceURL: sourceURL, resultURL: $0, leveled: level && !hasMask)
+                    ImageTools.structureScore(sourceURL: sourceURL, resultURL: $0, leveled: level && !hasMask)
                 }
                 return (r, urls, scores)
             }
@@ -572,7 +580,8 @@ final class AppStore: ObservableObject {
             guard let j = index(id) else { return }
             let perImage = (actual ?? est.dollars) / Double(max(result.1.count, 1))
             let versions = zip(result.1, result.2).map {
-                EditVersion(url: $0, edits: summary, altered: altered, cost: perImage, structureScore: $1)
+                EditVersion(url: $0, edits: summary, altered: altered, cost: perImage,
+                            structureScore: $1, staged: staged)
             }
             photos[j].results.append(contentsOf: versions)
             photos[j].chosen = photos[j].results.count - versions.count
@@ -703,7 +712,7 @@ final class AppStore: ObservableObject {
                     do {
                         try ImageTools.export(v.url, to: dir.appendingPathComponent(name), longEdge: longEdge)
                         let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
-                        let check = v.structureScore.map { String(format: $0 < StructureCheck.warnBelow ? "REVIEW %.2f" : "ok %.2f", $0) } ?? ""
+                        let check = v.structureScore.map { String(format: v.structureSuspect ? "REVIEW %.2f" : "ok %.2f", $0) } ?? ""
                         csv += "\"\(name)\",\"\(job.original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(job.approved ? "yes" : "no"),\(check),\(String(format: "%.4f", v.cost))\n"
                     } catch {
                         failures.append(job.base)

@@ -77,7 +77,14 @@ public enum PromptBuilder {
             case .scenic: lines.append("- Put a calm, neutral landscape image on any TV screen, with no text or logos.")
             }
             if o.stagingStyle != .none {
-                lines.append("- Virtually stage this room: furnish the empty or sparse space with tasteful, realistic \(o.stagingStyle.promptDescription), appropriate to the room's function (a bedroom gets a bed, a living room a sofa, and so on). Furniture and decor must be correctly scaled for the room, grounded with natural shadows and reflections, and must never block or hide windows, doors, vents, outlets, fireplaces or built-ins. Stage the furnishings ONLY — the room itself (walls, floors, ceilings, windows, trim, fixtures) stays exactly as photographed.")
+                lines.append("""
+                - Virtually stage this room by ADDING furniture and decor into this exact photograph: tasteful, realistic \(o.stagingStyle.promptDescription), appropriate to the room's function (a bedroom gets a bed, a living room a sofa, and so on). Staging is strictly additive — place furnishings into the photo and change NOTHING else:
+                  - The room itself is untouchable. Every wall, window, door, doorway, opening, closet, stair, floor, ceiling, light fixture, outlet, vent and piece of trim stays exactly where it is in the original, at the same size and shape. The flooring, paint colors and finishes stay exactly as photographed. Do not redraw, reshape, enlarge, remodel or "improve" the room in any way.
+                  - Never block a door, doorway, entrance, hallway or walkway. Every door and opening visible in the original must remain fully visible and usable, with clear space in front of it. Do not place any furniture in front of or against a door or opening, and leave realistic walking paths through the room.
+                  - Keep windows, fireplaces, built-ins, radiators, vents and outlets visible; do not cover or hide them.
+                  - Do not move, remove or replace anything already in the room. Only add.
+                  - Added furniture must be correctly scaled for the room and grounded with natural shadows and reflections.
+                """)
             }
         case .exterior:
             switch o.sky {

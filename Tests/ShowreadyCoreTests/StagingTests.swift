@@ -11,6 +11,18 @@ final class StagingTests: XCTestCase {
         let prompt = PromptBuilder.prompt(for: o)
         XCTAssertTrue(prompt.contains("Virtually stage"))
         XCTAssertTrue(prompt.contains("scandinavian"))
+        // The add-only lockdown that keeps staging from redrawing the room.
+        XCTAssertTrue(prompt.contains("strictly additive"))
+        XCTAssertTrue(prompt.contains("Never block a door"))
+        XCTAssertTrue(prompt.contains("Do not move, remove or replace"))
+    }
+
+    /// Staged results are judged against a lower structure threshold than
+    /// relights (furniture adds edges), but it must still sit far enough
+    /// above the calibrated repaint score (~0.1) to catch a redrawn room.
+    func testStagedStructureThresholdCatchesRedraws() {
+        XCTAssertLessThan(StructureCheck.warnBelowStaged, StructureCheck.warnBelow)
+        XCTAssertGreaterThan(StructureCheck.warnBelowStaged, 0.2)
     }
 
     func testStagingAbsentFromExteriorAndUnstagedPrompts() {
