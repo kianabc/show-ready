@@ -3,6 +3,11 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.6.0] — 2026-11-05
+
+### Added
+- Delete a single edited version (trash button in the compare view), or remove photos from the library entirely (Delete key or right-click). Originals on disk are never touched.
+
 ## [0.5.0] — 2026-11-05
 
 ### Added

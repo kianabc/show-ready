@@ -19,6 +19,7 @@ struct CompareView: View {
     @State private var brush: CGFloat = 0.025
     @State private var currentStroke: [CGPoint] = []
     @State private var keyMonitor: Any?
+    @State private var confirmDeleteVersion = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -98,6 +99,9 @@ struct CompareView: View {
             case 124 where photo.results.count > 1: stepVersion(1); return nil    // right arrow
             case 126: store.stepSelection(-1); return nil                         // up arrow
             case 125: store.stepSelection(1); return nil                          // down arrow
+            case 51:                                                              // delete
+                store.requestRemove(Array(store.selection))
+                return nil
             default:
                 if event.charactersIgnoringModifiers?.lowercased() == "a", photo.chosenResult != nil {
                     photo.approved.toggle()
@@ -142,6 +146,20 @@ struct CompareView: View {
                 .tint(photo.approved ? .green : .accentColor)
                 .help(photo.approved ? "This version will be exported (A toggles)"
                                      : "Use this version for export (A)")
+            }
+            if photo.chosenResult != nil {
+                Button { confirmDeleteVersion = true } label: { Image(systemName: "trash") }
+                    .help("Delete this version")
+                    .confirmationDialog(
+                        "Delete version \(photo.chosen + 1) of \(photo.name)?",
+                        isPresented: $confirmDeleteVersion
+                    ) {
+                        Button("Delete Version", role: .destructive) {
+                            store.deleteVersion(photo.id, at: photo.chosen)
+                        }
+                    } message: {
+                        Text("The edited file is deleted. The original photo is not touched.")
+                    }
             }
             if photo.results.count > 1 {
                 Button { stepVersion(-1) } label: { Image(systemName: "chevron.left") }

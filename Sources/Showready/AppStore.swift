@@ -407,9 +407,65 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Asks before removing, because there is no undo. Originals stay on disk.
+    func requestRemove(_ ids: [PhotoItem.ID]) {
+        guard !ids.isEmpty else { return }
+        let alert = NSAlert()
+        alert.messageText = ids.count == 1 ? "Remove this photo from the library?"
+                                           : "Remove \(ids.count) photos from the library?"
+        alert.informativeText = "Their edited versions are deleted. The original files stay on disk and can be imported again."
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate()
+        if alert.runModal() == .alertFirstButtonReturn { remove(ids) }
+    }
+
     func remove(_ ids: [PhotoItem.ID]) {
+        // Keep the user's place in the list: select what now sits where the
+        // first removed photo was.
+        let order = listingSections.flatMap(\.items).map(\.id)
+        let anchor = order.firstIndex { ids.contains($0) } ?? 0
+        for p in photos where ids.contains(p.id) {
+            for v in p.results { deleteResultFile(v.url) }
+        }
         photos.removeAll { ids.contains($0.id) }
         selection.subtract(ids)
+        if selection.isEmpty {
+            let remaining = listingSections.flatMap(\.items).map(\.id)
+            if !remaining.isEmpty { selection = [remaining[min(anchor, remaining.count - 1)]] }
+        }
+    }
+
+    /// Deletes one edited version of a photo, and its file. The chosen index
+    /// follows the surviving versions, and a photo left with exactly one
+    /// version is auto-selected again.
+    func deleteVersion(_ id: PhotoItem.ID, at index: Int) {
+        guard let i = self.index(id), photos[i].results.indices.contains(index) else { return }
+        let removed = photos[i].results.remove(at: index)
+        deleteResultFile(removed.url)
+        if photos[i].results.isEmpty {
+            photos[i].chosen = 0
+            photos[i].approved = false
+            photos[i].status = .idle
+        } else {
+            // Deleting the version that was on screen lands on a different
+            // one, so any approval of the deleted version must not carry over.
+            let deletedTheChosen = index == photos[i].chosen
+            if index < photos[i].chosen { photos[i].chosen -= 1 }
+            photos[i].chosen = min(photos[i].chosen, photos[i].results.count - 1)
+            if photos[i].results.count == 1 {
+                photos[i].approved = true
+            } else if deletedTheChosen {
+                photos[i].approved = false
+            }
+        }
+    }
+
+    /// Only ever deletes inside the app's own Results folder — a photo's
+    /// `url` (the original) must never reach this.
+    private func deleteResultFile(_ url: URL) {
+        guard url.path.hasPrefix(workDir.path) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     /// Copies one photo's options to others of the same kind, for consistent listings.

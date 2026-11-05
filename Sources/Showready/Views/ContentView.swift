@@ -204,7 +204,7 @@ struct LibraryView: View {
                         }
                     }
                 }
-                Button("Remove from list") { store.remove(targets(p)) }
+                Button("Remove from library") { store.requestRemove(targets(p)) }
                 Button("Show original in Finder") { NSWorkspace.shared.activateFileViewerSelecting([p.url]) }
             }
         }
