@@ -1,0 +1,168 @@
+#if os(macOS)
+import SwiftUI
+import ListingPolishCore
+
+/// Before/after viewer with a draggable divider, plus a brush to mark objects to remove.
+struct CompareView: View {
+    @EnvironmentObject var store: AppStore
+    @Binding var photo: PhotoItem
+
+    enum Mode: String, CaseIterable, Identifiable {
+        case compare = "Before / After", original = "Original", edited = "Edited", mark = "Mark objects"
+        var id: String { rawValue }
+    }
+
+    @State private var mode: Mode = .compare
+    @State private var split: CGFloat = 0.5
+    @State private var original: NSImage?
+    @State private var edited: NSImage?
+    @State private var brush: CGFloat = 0.025
+    @State private var currentStroke: [CGPoint] = []
+
+    var body: some View {
+        VStack(spacing: 0) {
+            controls.padding(10)
+            Divider()
+            GeometryReader { geo in
+                let rect = fittedRect(in: geo.size)
+                ZStack(alignment: .topLeading) {
+                    Color(nsColor: .underPageBackgroundColor)
+                    if let original {
+                        Image(nsImage: showEditedOnly ? (edited ?? original) : original)
+                            .resizable()
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
+                    if mode == .compare, let edited {
+                        Image(nsImage: edited)
+                            .resizable()
+                            .frame(width: rect.width, height: rect.height)
+                            .mask(alignment: .leading) {
+                                Rectangle().frame(width: rect.width * split)
+                            }
+                            .offset(x: rect.minX, y: rect.minY)
+                        divider(rect)
+                    }
+                    if mode == .mark { maskOverlay(rect) }
+                    if photo.status == .working {
+                        ProgressView("Editing with \(store.model.displayName)…")
+                            .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                    }
+                }
+                .contentShape(Rectangle())
+                .gesture(mode == .mark ? paintGesture(rect) : nil)
+            }
+            if case .failed(let msg) = photo.status {
+                Text(msg).foregroundStyle(.red).font(.callout).padding(8)
+                    .frame(maxWidth: .infinity).background(.red.opacity(0.08))
+            }
+        }
+        .task(id: photo.url) { original = await load(photo.url) }
+        .task(id: photo.chosenResult) {
+            edited = nil
+            if let r = photo.chosenResult { edited = await load(r) }
+            if edited != nil && mode == .original { mode = .compare }
+        }
+    }
+
+    private var showEditedOnly: Bool { mode == .edited }
+
+    private var controls: some View {
+        HStack {
+            Picker("", selection: $mode) {
+                ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 440)
+
+            if mode == .mark {
+                Slider(value: $brush, in: 0.005...0.08) { Text("Brush") }.frame(width: 160)
+                Button("Clear") { photo.maskStrokes.removeAll() }
+                    .disabled(photo.maskStrokes.isEmpty)
+            }
+            Spacer()
+            if photo.results.count > 1 {
+                Picker("Version", selection: $photo.chosen) {
+                    ForEach(photo.results.indices, id: \.self) { Text("v\($0 + 1)").tag($0) }
+                }
+                .frame(width: 130)
+            }
+            Text("\(photo.size.width)×\(photo.size.height)").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func divider(_ rect: CGRect) -> some View {
+        let x = rect.minX + rect.width * split
+        return ZStack {
+            Rectangle().fill(.white).frame(width: 2, height: rect.height).shadow(radius: 2)
+            Circle().fill(.white).frame(width: 28, height: 28).shadow(radius: 2)
+                .overlay(Image(systemName: "arrow.left.and.right").font(.caption.bold()).foregroundStyle(.black))
+        }
+        .position(x: x, y: rect.midY)
+        .gesture(DragGesture().onChanged { v in
+            split = min(max((v.location.x - rect.minX) / rect.width, 0), 1)
+        })
+        .overlay(alignment: .topLeading) {
+            HStack {
+                tag("Edited")
+                Spacer()
+                tag("Original")
+            }
+            .frame(width: rect.width - 20)
+            .position(x: rect.midX, y: rect.minY + 20)
+        }
+    }
+
+    private func tag(_ s: String) -> some View {
+        Text(s).font(.caption.bold()).padding(.horizontal, 8).padding(.vertical, 3)
+            .background(.black.opacity(0.55), in: Capsule()).foregroundStyle(.white)
+    }
+
+    private func maskOverlay(_ rect: CGRect) -> some View {
+        Canvas { ctx, _ in
+            let all = photo.maskStrokes + (currentStroke.isEmpty ? [] : [MaskStroke(points: currentStroke, radius: brush)])
+            for s in all {
+                var path = Path()
+                let pts = s.points.map { CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height) }
+                guard let first = pts.first else { continue }
+                path.move(to: first)
+                if pts.count == 1 { path.addLine(to: CGPoint(x: first.x + 0.1, y: first.y)) }
+                for p in pts.dropFirst() { path.addLine(to: p) }
+                ctx.stroke(path, with: .color(.red.opacity(0.45)),
+                           style: StrokeStyle(lineWidth: s.radius * 2 * rect.width, lineCap: .round, lineJoin: .round))
+            }
+        }
+        .allowsHitTesting(false)
+        .overlay(alignment: .bottom) {
+            Text("Paint over things to remove, then run the edit. Only painted areas are changed for removal.")
+                .font(.caption).padding(6).background(.regularMaterial, in: Capsule()).padding(10)
+        }
+    }
+
+    private func paintGesture(_ rect: CGRect) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { v in
+                let p = CGPoint(x: (v.location.x - rect.minX) / rect.width, y: (v.location.y - rect.minY) / rect.height)
+                guard (0...1).contains(p.x), (0...1).contains(p.y) else { return }
+                currentStroke.append(p)
+            }
+            .onEnded { _ in
+                if !currentStroke.isEmpty { photo.maskStrokes.append(MaskStroke(points: currentStroke, radius: brush)) }
+                currentStroke = []
+            }
+    }
+
+    private func fittedRect(in container: CGSize) -> CGRect {
+        let pad: CGFloat = 16
+        let w = container.width - pad * 2, h = container.height - pad * 2
+        let aspect = photo.size.aspect
+        var fw = w, fh = w / aspect
+        if fh > h { fh = h; fw = h * aspect }
+        return CGRect(x: (container.width - fw) / 2, y: (container.height - fh) / 2, width: max(fw, 1), height: max(fh, 1))
+    }
+
+    private func load(_ url: URL) async -> NSImage? {
+        await Task.detached(priority: .userInitiated) { ImageTools.thumbnail(url, maxEdge: 2400) }.value
+    }
+}
+#endif
