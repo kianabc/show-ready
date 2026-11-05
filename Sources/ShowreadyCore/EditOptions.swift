@@ -32,6 +32,31 @@ public enum SkyStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public enum StagingStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case none, modern, warm, scandinavian, traditional
+    public var id: String { rawValue }
+    public var label: String {
+        switch self {
+        case .none: return "No staging"
+        case .modern: return "Modern"
+        case .warm: return "Warm contemporary"
+        case .scandinavian: return "Scandinavian"
+        case .traditional: return "Traditional"
+        }
+    }
+
+    /// How the style reads inside the prompt.
+    public var promptDescription: String {
+        switch self {
+        case .none: return ""
+        case .modern: return "clean-lined modern furniture in neutral tones"
+        case .warm: return "warm contemporary furniture with soft textures and earth tones"
+        case .scandinavian: return "light scandinavian furniture: pale wood, white and soft gray textiles"
+        case .traditional: return "classic traditional furniture in warm wood tones"
+        }
+    }
+}
+
 public enum TVScreen: String, Codable, CaseIterable, Identifiable, Sendable {
     case leave, black, scenic
     public var id: String { rawValue }
@@ -65,6 +90,10 @@ public struct EditOptions: Codable, Hashable, Sendable {
     public var fireInFireplace = false
     public var tvScreen: TVScreen = .leave
     public var removeReflections = true
+    /// Optional so options saved by older builds still decode; nil means none.
+    public var staging: StagingStyle? = nil
+
+    public var stagingStyle: StagingStyle { staging ?? .none }
 
     // Exterior.
     public var sky: SkyStyle = .keep
@@ -102,6 +131,7 @@ public struct EditOptions: Codable, Hashable, Sendable {
             if fireInFireplace { s.append("virtual fire") }
             if tvScreen != .leave { s.append("TV screen \(tvScreen.rawValue)") }
             if removeReflections { s.append("reflections removed") }
+            if stagingStyle != .none { s.append("virtually staged (\(stagingStyle.rawValue))") }
         case .exterior:
             if sky != .keep { s.append("sky replaced (\(sky.rawValue))") }
             if twilight { s.append("virtual twilight") }
@@ -119,6 +149,7 @@ public struct EditOptions: Codable, Hashable, Sendable {
         switch kind {
         case .interior:
             return fireInFireplace || lightsOn || tvScreen == .scenic || declutter == .thorough
+                || stagingStyle != .none
         case .exterior:
             return sky != .keep || twilight || greenLawn
         }

@@ -76,6 +76,9 @@ public enum PromptBuilder {
             case .black: lines.append("- Make any TV or monitor screen a clean, glare-free black.")
             case .scenic: lines.append("- Put a calm, neutral landscape image on any TV screen, with no text or logos.")
             }
+            if o.stagingStyle != .none {
+                lines.append("- Virtually stage this room: furnish the empty or sparse space with tasteful, realistic \(o.stagingStyle.promptDescription), appropriate to the room's function (a bedroom gets a bed, a living room a sofa, and so on). Furniture and decor must be correctly scaled for the room, grounded with natural shadows and reflections, and must never block or hide windows, doors, vents, outlets, fireplaces or built-ins. Stage the furnishings ONLY — the room itself (walls, floors, ceilings, windows, trim, fixtures) stays exactly as photographed.")
+            }
         case .exterior:
             switch o.sky {
             case .keep:

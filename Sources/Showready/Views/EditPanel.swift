@@ -17,7 +17,6 @@ struct EditPanel: View {
             Form {
                 header(current)
                 OptionsForm(o: binding)
-                modelSection
                 costSection(current)
             }
             .formStyle(.grouped)
@@ -59,40 +58,13 @@ struct EditPanel: View {
         }
     }
 
-    private var modelSection: some View {
-        Section("AI model") {
-            Picker("Model", selection: $store.settings.modelID) {
-                ForEach(store.models) { Text($0.displayName).tag($0.id) }
-            }
-            Picker("Quality", selection: $store.settings.quality) {
-                ForEach(store.model.qualities) { Text($0.label).tag($0) }
-            }
-            if store.model.sizeMode == .custom {
-                Picker("Output size", selection: $store.settings.outputLongEdge) {
-                    Text("1536 px (fast)").tag(1536)
-                    Text("2048 px (MLS)").tag(2048)
-                    Text("2560 px").tag(2560)
-                    Text("3840 px (4K, experimental)").tag(3840)
-                }
-            } else {
-                Text("This model outputs at most 1536×1024. Photos that aren't 3:2 are center-cropped to fit.")
-                    .font(.caption).foregroundStyle(.orange)
-            }
-            Stepper("Versions per photo: \(store.settings.variations)", value: $store.settings.variations, in: 1...4)
-            if !store.model.notes.isEmpty {
-                Text(store.model.notes).font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .onChange(of: store.settings.modelID) {
-            // Keep the quality picker valid when a model offers fewer levels.
-            store.settings.quality = store.effectiveQuality
-        }
-    }
-
     private func costSection(_ p: PhotoItem) -> some View {
         let e = store.estimate(for: p)
         let selected = store.selectedIDs
         return Section("Cost") {
+            LabeledContent("Model", value: "\(store.model.displayName), \(store.effectiveQuality.label)")
+            Text("Model and quality apply to every photo — change them in Settings.")
+                .font(.caption).foregroundStyle(.secondary)
             LabeledContent("This photo", value: "≈ \(e.dollars.dollarString)")
             if selected.count > 1 {
                 LabeledContent("\(selected.count) selected", value: "≈ \(store.estimate(ids: selected).dollarString)")
@@ -159,6 +131,12 @@ struct OptionsForm: View {
                 Picker("TV screen", selection: $o.tvScreen) {
                     ForEach(TVScreen.allCases) { Text($0.label).tag($0) }
                 }
+                Picker("Virtual staging", selection: Binding(
+                    get: { o.stagingStyle },
+                    set: { o.staging = $0 })) {
+                    ForEach(StagingStyle.allCases) { Text($0.label).tag($0) }
+                }
+                .help("Furnishes an empty or sparse room with realistic furniture. The room itself is not changed. Staged photos need a \"virtually staged\" MLS disclosure.")
             }
         } else {
             Section("Exterior") {

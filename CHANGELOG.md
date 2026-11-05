@@ -3,6 +3,14 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.5.0] — 2026-11-05
+
+### Added
+- Virtual staging: furnish an empty or sparse room in one of four styles. Staged photos are flagged for MLS disclosure.
+
+### Improved
+- AI model and quality moved out of the per-photo panel into Settings — they apply to every photo. The cost section still shows which model will run.
+
 ## [0.4.0] — 2026-11-05
 
 ### Added

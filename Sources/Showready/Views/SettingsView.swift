@@ -148,6 +148,33 @@ struct OutputSettings: View {
 
     var body: some View {
         Form {
+            Section("AI model") {
+                Picker("Model", selection: $store.settings.modelID) {
+                    ForEach(store.models) { Text($0.displayName).tag($0.id) }
+                }
+                Picker("Quality", selection: $store.settings.quality) {
+                    ForEach(store.model.qualities) { Text($0.label).tag($0) }
+                }
+                if store.model.sizeMode == .custom {
+                    Picker("Output size", selection: $store.settings.outputLongEdge) {
+                        Text("1536 px (fast)").tag(1536)
+                        Text("2048 px (MLS)").tag(2048)
+                        Text("2560 px").tag(2560)
+                        Text("3840 px (4K, experimental)").tag(3840)
+                    }
+                } else {
+                    Text("This model outputs at most 1536×1024. Photos that aren't 3:2 are center-cropped to fit.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                Stepper("Versions per photo: \(store.settings.variations)", value: $store.settings.variations, in: 1...4)
+                if !store.model.notes.isEmpty {
+                    Text(store.model.notes).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .onChange(of: store.settings.modelID) {
+                // Keep the quality picker valid when a model offers fewer levels.
+                store.settings.quality = store.effectiveQuality
+            }
             Section("Processing") {
                 Stepper("Photos at once: \(store.settings.concurrency)", value: $store.settings.concurrency, in: 1...6)
                 Toggle("Level the horizon on this Mac before upload", isOn: $store.settings.levelHorizonLocally)

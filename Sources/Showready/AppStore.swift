@@ -476,6 +476,10 @@ final class AppStore: ObservableObject {
         let sourceSize = p.size
         let summary = p.options.summary
         let altered = p.options.isMaterialAlteration
+        // Staging adds furniture on purpose, so the edge-similarity check
+        // would flag every staged result; a warning that always fires
+        // teaches the user to ignore it. nil means "not checked".
+        let skipStructureCheck = p.options.stagingStyle != .none
 
         do {
             let work = Task.detached(priority: .userInitiated) { () -> (EditResult, [URL], [Double?]) in
@@ -493,8 +497,9 @@ final class AppStore: ObservableObject {
                     try data.write(to: u)
                     urls.append(u)
                 }
-                let scores = urls.map {
-                    ImageTools.structureScore(sourceURL: sourceURL, resultURL: $0, leveled: level && !hasMask)
+                let scores: [Double?] = urls.map {
+                    skipStructureCheck ? nil
+                        : ImageTools.structureScore(sourceURL: sourceURL, resultURL: $0, leveled: level && !hasMask)
                 }
                 return (r, urls, scores)
             }
