@@ -134,7 +134,7 @@ enum ImageTools {
         guard (try? handler.perform([req])) != nil,
               let angle = req.results?.first?.angle,
               abs(angle) > 0.002, abs(angle) < 0.12 else { return img }
-        let f = CIFilter.straightenFilter()
+        let f = CIFilter.straighten()
         f.inputImage = img
         f.angle = Float(-angle)
         return f.outputImage?.cropped(to: img.extent) ?? img
