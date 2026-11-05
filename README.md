@@ -42,7 +42,7 @@ OpenAI bills image edits by tokens: the prompt text, the uploaded photo, and the
 
 | Model | Image in / 1M | Image out / 1M | Notes |
 | --- | --- | --- | --- |
-| gpt-image-2 (default) | $8 | $30 | High at 1024×1024 is about $0.21 |
+| gpt-image-2 (default) | $8 | $30 | Medium at 2048 px is about $0.15 a photo |
 | gpt-image-2.5 / 2.6 sunburst, flare | $8 | $30 | Up to 3840 px, more quality levels |
 | gpt-image-1.5 | $8 | $32 | Max 1536 px |
 | gpt-image-1-mini | $2.50 | $8 | Cheapest, max 1536 px |

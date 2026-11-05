@@ -37,8 +37,8 @@ struct PhotoItem: Identifiable {
 /// Settings that persist between launches.
 struct AppSettings: Codable, Equatable {
     var modelID = "gpt-image-2"
-    var quality: ImageQuality = .high
-    var outputLongEdge = 2560
+    var quality: ImageQuality = .medium
+    var outputLongEdge = 2048
     var variations = 1
     var concurrency = 2
     var levelHorizonLocally = false
