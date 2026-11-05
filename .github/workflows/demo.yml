@@ -29,9 +29,10 @@ jobs:
           SHOWREADY_DEMO_DIR: ${{ runner.temp }}/demo/photos
           SHOWREADY_DEMO_OUT: ${{ runner.temp }}/demo/output
           SHOWREADY_DEMO_QUIT: "1"
-          SHOWREADY_DEMO_AI: ${{ inputs.ai && '1' || '0' }}
+          # AI runs when started by hand with the box ticked, or when a pushed commit message contains [demo-ai].
+          SHOWREADY_DEMO_AI: ${{ (inputs.ai || contains(github.event.head_commit.message, '[demo-ai]')) && '1' || '0' }}
           SHOWREADY_DEMO_AI_COUNT: ${{ inputs.ai_count || '2' }}
-          OPENAI_API_KEY: ${{ inputs.ai && secrets.OPENAI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (inputs.ai || contains(github.event.head_commit.message, '[demo-ai]')) && secrets.OPENAI_API_KEY || '' }}
         run: |
           mkdir -p "$SHOWREADY_DEMO_OUT"
           "build/Showready.app/Contents/MacOS/Showready" > "$SHOWREADY_DEMO_OUT/app-output.txt" 2>&1 &
@@ -50,6 +51,11 @@ jobs:
           echo "----- app output -----"; grep -v "^$" "$SHOWREADY_DEMO_OUT/app-output.txt" | tail -60
           ls -la "$SHOWREADY_DEMO_OUT"
           test -f "$SHOWREADY_DEMO_OUT/demo-log.txt"
+      - name: Check for missing API key
+        if: (inputs.ai || contains(github.event.head_commit.message, '[demo-ai]'))
+        env:
+          HAS_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: if [ "$HAS_KEY" != "true" ]; then echo "::warning::OPENAI_API_KEY secret is not set, so no AI edits ran."; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
