@@ -4,6 +4,7 @@ import AppKit
 
 struct ShowreadyApp: App {
     @StateObject private var store = AppStore()
+    @StateObject private var updates = UpdateController()
 
     init() {
         // Needed when launched with `swift run` instead of as a bundled .app.
@@ -16,6 +17,7 @@ struct ShowreadyApp: App {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 1100, minHeight: 700)
+                .onAppear { updates.start() }
         }
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -27,6 +29,7 @@ struct ShowreadyApp: App {
         Settings {
             SettingsView()
                 .environmentObject(store)
+                .environmentObject(updates)
         }
     }
 }

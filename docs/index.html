@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Showready — MLS-ready real estate photos, on your Mac</title>
+<meta name="description" content="Turn owner-shot photos into MLS-ready images. Cleans glare, clutter and color; optional twilight and sky edits that never change the house. For macOS.">
+<meta property="og:title" content="Showready — MLS-ready real estate photos">
+<meta property="og:description" content="Turn owner-shot photos into MLS-ready images, without changing the house.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+<style>
+  /* Self-contained on purpose: no CDN, no fonts, no analytics. The page
+     shouldn't phone anywhere the app wouldn't. */
+  :root {
+    --bg: #0a0b12;
+    --bg-2: #101221;
+    --card: #141627;
+    --card-2: #191c30;
+    --line: rgba(255,255,255,.08);
+    --line-2: rgba(255,255,255,.14);
+    --ink: #f1f0f5;
+    --muted: #96939f;
+    --accent: #f2884b;
+    --accent-2: #d95f2e;
+    --accent-ink: #1a0e07;
+    --glow: rgba(242,136,75,.16);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(900px 520px at 50% -120px, var(--glow), transparent 70%),
+      radial-gradient(700px 400px at 90% 20%, rgba(90,78,214,.10), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  nav { padding: 28px 0; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; letter-spacing: -.01em; }
+  .brand:hover { text-decoration: none; }
+  .brand .dot {
+    width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(160deg, #2c2a63, var(--accent-2)); font-size: 15px;
+  }
+  .nav-link { color: var(--muted); font-size: 14px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; }
+  .nav-link:hover { color: var(--ink); border-color: var(--line-2); text-decoration: none; }
+
+  header { padding: 104px 0 72px; text-align: center; }
+  h1 {
+    font-size: clamp(42px, 7.2vw, 68px); line-height: 1.04; margin: 0 0 20px;
+    letter-spacing: -.035em; font-weight: 700;
+  }
+  h1 .accent {
+    display: block;
+    background: linear-gradient(90deg, var(--accent), #ffbd7d);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .tagline { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); margin: 0 auto; max-width: 50ch; }
+
+  .cta { margin: 36px 0 14px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--accent-ink); padding: 15px 32px; border-radius: 14px;
+    font-weight: 700; font-size: 17px;
+    box-shadow: 0 12px 36px rgba(242,136,75,.28), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 16px 44px rgba(242,136,75,.36), inset 0 1px 0 rgba(255,255,255,.25); text-decoration: none; }
+  .req { color: var(--muted); font-size: 13px; }
+  .req span + span::before { content: "·"; margin: 0 8px; opacity: .6; }
+
+  /* The before/after strip is the pitch. */
+  .demo {
+    margin: 56px auto 0; max-width: 720px; text-align: left;
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 26px 28px; box-shadow: 0 30px 80px rgba(0,0,0,.45);
+  }
+  .label { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 6px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .shot { border-radius: 12px; border: 1px solid var(--line-2); padding: 16px; font-size: 14px; }
+  .shot b { display: block; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+  .shot.before { background: linear-gradient(180deg, #23252e, #1b1c23); color: var(--muted); }
+  .shot.after { background: linear-gradient(180deg, #1b2440, #3a2338); color: var(--ink); }
+  .shot ul { margin: 0; padding-left: 18px; }
+  .shot li { margin: 3px 0; }
+  .demo .note-line { color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+
+  section { padding: 72px 0 0; }
+  h2 { font-size: clamp(24px, 3.2vw, 30px); margin: 0 0 8px; letter-spacing: -.02em; text-align: center; }
+  .lead { color: var(--muted); text-align: center; margin: 0 auto 36px; max-width: 52ch; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  @media (min-width: 760px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 22px 20px;
+    transition: border-color .15s ease, transform .15s ease;
+  }
+  .card:hover { border-color: var(--line-2); transform: translateY(-2px); }
+  .card .icon {
+    width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 19px;
+    background: linear-gradient(135deg, rgba(242,136,75,.22), rgba(217,95,46,.12)); border: 1px solid rgba(242,136,75,.25);
+    margin-bottom: 14px;
+  }
+  .card h3 { font-size: 16px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+  .step { position: relative; }
+  .step .n {
+    position: absolute; top: 18px; right: 20px; font-size: 12px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
+  }
+
+  .callout {
+    margin-top: 72px; text-align: center;
+    background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line);
+    border-radius: 20px; padding: 40px 28px;
+  }
+  .callout .mark { font-size: 28px; margin-bottom: 8px; }
+  .callout h2 { margin-bottom: 10px; }
+  .callout p { color: var(--muted); max-width: 58ch; margin: 0 auto; }
+
+  .install ol { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .install li { counter-increment: s; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; color: var(--muted); font-size: 14.5px; }
+  .install li::before {
+    content: counter(s); display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-ink); font-weight: 700; font-size: 13px; margin-bottom: 10px;
+  }
+  .install li b { color: var(--ink); display: block; margin-bottom: 2px; }
+  .install code { color: var(--ink); }
+  .note { color: var(--muted); font-size: 14px; text-align: center; margin: 18px auto 0; max-width: 60ch; }
+
+  footer { margin-top: 96px; padding: 36px 0 72px; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font-size: 14px; }
+  footer a { color: var(--muted); margin: 0 10px; }
+  footer a:hover { color: var(--ink); }
+  footer p { margin: 14px 0 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><span class="dot">🏡</span>Showready</a>
+    <a class="nav-link" href="https://github.com/kianabc/show-ready">GitHub ↗</a>
+  </nav>
+</div>
+
+<header class="wrap">
+  <h1>Owner-shot photos in.<span class="accent">MLS-ready photos out.</span></h1>
+  <p class="tagline">Drop in the photos a seller took on their phone. Showready fixes the glare, the color, the fisheye and the harsh shadows — and never, ever changes the house.</p>
+
+  <div class="cta">
+    <a class="btn" id="download" href="https://github.com/kianabc/show-ready/releases/latest">⬇ Download for macOS</a>
+  </div>
+  <p class="req" id="req"><span>Free and open source</span><span>macOS 14 or later</span></p>
+
+  <div class="demo">
+    <div class="label">The same photo</div>
+    <div class="pair">
+      <div class="shot before"><b>Before</b>
+        <ul>
+          <li>Window glare washing out the kitchen</li>
+          <li>Yellow indoor color cast</li>
+          <li>Phone-lens fisheye bowing the walls</li>
+          <li>Gray, flat sky</li>
+        </ul>
+      </div>
+      <div class="shot after"><b>After</b>
+        <ul>
+          <li>Balanced light, true colors</li>
+          <li>Straight verticals</li>
+          <li>Blue sky or golden-hour twilight</li>
+          <li>Same rooms, same windows, same view</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note-line">Every AI result is scored against the original. If the structure changed, Showready warns you and flags the photo for review.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <h2>How it works</h2>
+  <p class="lead">Import, pick the look, export. The queue does the rest.</p>
+  <div class="grid">
+    <div class="card step"><span class="n">1</span><div class="icon">📥</div><h3>Import</h3><p>Drop in a folder of photos. Showready sorts them into a listing and detects interior vs exterior automatically.</p></div>
+    <div class="card step"><span class="n">2</span><div class="icon">✨</div><h3>Enhance</h3><p>A free local cleanup, or AI edits — twilight, sky, lights on, fire in the fireplace, greener lawn. You see the estimated cost per photo before anything runs.</p></div>
+    <div class="card step"><span class="n">3</span><div class="icon">✓</div><h3>Approve and export</h3><p>Compare versions, approve the keeper with one key, and export MLS-sized JPEGs with an edit log for disclosure.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>What makes it different</h2>
+  <p class="lead">Photo enhancement a listing agent can defend.</p>
+  <div class="grid">
+    <div class="card"><div class="icon">🏠</div><h3>The house stays the house</h3><p>Permanent structure, room size, perspective and the view are locked down. Power lines and the neighbor's house stay where they are.</p></div>
+    <div class="card"><div class="icon">🛡️</div><h3>It checks its own work</h3><p>Every AI edit is compared against the original, edge by edge. A result that redrew the house gets a warning, not a pass.</p></div>
+    <div class="card"><div class="icon">📋</div><h3>Disclosure built in</h3><p>Materially altered photos are flagged in an edit log and can carry a "virtually enhanced" filename, so MLS disclosure is a copy-paste, not a memory test.</p></div>
+    <div class="card"><div class="icon">💸</div><h3>It shows what it costs</h3><p>Bring your own OpenAI key. Estimated cost before each photo, actual cost after, and a running ledger.</p></div>
+    <div class="card"><div class="icon">🌇</div><h3>Twilight without a reshoot</h3><p>Golden hour, sunset and dusk as relight-only edits — the light changes, the architecture doesn't.</p></div>
+    <div class="card"><div class="icon">🔄</div><h3>It updates itself</h3><p>When a new version is out, it asks. One click downloads it, verifies it was signed by the same developer, and restarts.</p></div>
+  </div>
+</section>
+
+<div class="callout">
+  <div class="mark">🔒</div>
+  <h2>Your photos, your key, your Mac</h2>
+  <p>Photos only leave your Mac for the AI edits you choose, sent directly to OpenAI with your own API key. The free local enhance never uploads anything. No accounts, no telemetry, and exports strip location and camera metadata.</p>
+</div>
+
+<section class="install">
+  <h2>Installing</h2>
+  <p class="lead">A minute, once. After that it keeps itself up to date.</p>
+  <ol>
+    <li><b>Download</b>The <code>.dmg</code> from the button above.</li>
+    <li><b>Drag</b>Double-click it and drag Showready to Applications.</li>
+    <li><b>Open</b>Signed and notarised, so it opens with one click — no security warnings.</li>
+    <li><b>Add a key</b>Optional: paste an OpenAI API key in Settings to unlock the AI edits.</li>
+  </ol>
+  <p class="note">The free local enhance works with no key at all. Requires macOS 14 or later.</p>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <a href="https://github.com/kianabc/show-ready">Source</a>·
+  <a href="https://github.com/kianabc/show-ready/blob/main/CHANGELOG.md">Changelog</a>·
+  <a href="https://github.com/kianabc/show-ready/issues">Report a problem</a>
+  <p>Made for people selling their own homes.</p>
+</footer>
+
+<script>
+  // Progressive enhancement only. Without JS the button still points at the
+  // releases page, which always works. Releases are listed (not /latest)
+  // because the rolling "latest" CI build is a prerelease without a dmg.
+  fetch('https://api.github.com/repos/kianabc/show-ready/releases?per_page=10')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(releases => {
+      const release = releases.find(r => !r.draft && !r.prerelease &&
+        (r.assets || []).some(a => a.name.endsWith('.dmg')));
+      if (!release) return;
+      const dmg = release.assets.find(a => a.name.endsWith('.dmg'));
+      document.getElementById('download').href = dmg.browser_download_url;
+      const size = `${(dmg.size / 1048576).toFixed(1)} MB`;
+      const req = document.getElementById('req');
+      req.innerHTML = '';
+      [release.tag_name, size, 'Free and open source', 'macOS 14 or later']
+        .forEach(t => { const s = document.createElement('span'); s.textContent = t; req.appendChild(s); });
+    })
+    .catch(() => {});
+</script>
+
+</body>
+</html>

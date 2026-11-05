@@ -185,8 +185,13 @@ final class AppStore: ObservableObject {
         for i in photos.indices where ids.contains(photos[i].id) { photos[i].listing = listing }
     }
 
-    /// Sidebar sections. A single unnamed section until the first listing exists.
+    /// Sidebar sections. A single unnamed section until the first listing
+    /// exists. Choosing a listing filters the library to it; "All photos"
+    /// (nil) shows every listing as its own section.
     var listingSections: [(name: String, items: [PhotoItem])] {
+        if let current = currentListing {
+            return [(current, photos.filter { $0.listing == current })]
+        }
         let hasListings = !listings.isEmpty || photos.contains { !$0.listing.isEmpty }
         guard hasListings else { return [("", photos)] }
         var names = listings

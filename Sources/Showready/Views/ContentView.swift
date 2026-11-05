@@ -114,11 +114,14 @@ struct LibraryView: View {
         }
         .safeAreaInset(edge: .top) { listingBar }
         .safeAreaInset(edge: .bottom) {
-            if !store.photos.isEmpty {
-                let total = store.estimate(ids: store.photos.map(\.id))
-                let approved = store.approvedIDs.count
+            // Counts and cost follow the listing filter, so they describe what
+            // the list is actually showing.
+            let visible = store.listingSections.flatMap(\.items)
+            if !visible.isEmpty {
+                let total = store.estimate(ids: visible.map(\.id))
+                let approved = visible.filter(\.approved).count
                 HStack {
-                    Text("\(store.photos.count) photos\(approved > 0 ? ", \(approved) approved" : "")")
+                    Text("\(visible.count) photos\(approved > 0 ? ", \(approved) approved" : "")")
                     Spacer()
                     Text("All: ≈\(total.dollarString)")
                 }
@@ -138,7 +141,7 @@ struct LibraryView: View {
     private var listingBar: some View {
         HStack {
             Menu {
-                Button("No listing (unsorted)") { store.currentListing = nil }
+                Button("All photos") { store.currentListing = nil }
                 if !store.listings.isEmpty { Divider() }
                 ForEach(store.listings, id: \.self) { l in
                     Button(l) { store.currentListing = l }
@@ -146,10 +149,10 @@ struct LibraryView: View {
                 Divider()
                 Button("New Listing…") { showNewListing = true }
             } label: {
-                Label(store.currentListing ?? "No listing", systemImage: "folder")
+                Label(store.currentListing ?? "All photos", systemImage: "folder")
                     .lineLimit(1)
             }
-            .help("New photos are imported into this listing")
+            .help("Shows this listing's photos; new imports go into it")
             Spacer()
         }
         .padding(8).background(.bar)

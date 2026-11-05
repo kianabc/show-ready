@@ -9,8 +9,47 @@ struct SettingsView: View {
             ModelPriceSettings().tabItem { Label("Models & Prices", systemImage: "dollarsign.circle") }
             OutputSettings().tabItem { Label("Output", systemImage: "square.and.arrow.up") }
             SpendSettings().tabItem { Label("Spending", systemImage: "chart.bar") }
+            UpdateSettings().tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }
         }
         .frame(width: 720, height: 480)
+    }
+}
+
+struct UpdateSettings: View {
+    @EnvironmentObject var updates: UpdateController
+    @State private var automatic = UpdatePreference.automatic
+    @State private var frequency = UpdatePreference.frequency
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Installed version", value: updates.currentVersion)
+                Toggle("Check for updates automatically", isOn: $automatic)
+                    .onChange(of: automatic) { _, v in UpdatePreference.automatic = v }
+                Picker("Check", selection: $frequency) {
+                    ForEach(UpdateFrequency.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }
+                .onChange(of: frequency) { _, v in UpdatePreference.frequency = v }
+                .disabled(!automatic)
+            }
+            Section {
+                HStack {
+                    Button("Check Now") { updates.checkNow() }.disabled(updates.checking)
+                    if updates.checking { ProgressView().controlSize(.small) }
+                    Text(updates.status).foregroundStyle(.secondary)
+                    Spacer()
+                    if let update = updates.availableUpdate {
+                        Button("Install \(update.version.description)…") { updates.offer(update) }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(updates.isInstalling)
+                    }
+                }
+            } footer: {
+                Text("Updates come from GitHub releases. Before installing, the download is verified: the signature must be this developer's and Apple must have notarised the exact build.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

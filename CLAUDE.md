@@ -10,8 +10,10 @@ macOS SwiftUI app (Swift package, macOS 14+) that turns owner-shot real estate p
 ## Commands
 - Tests: `swift test`
 - Run from source: `swift run Showready` or open `Package.swift` in Xcode.
-- Build the .app: `./scripts/build-app.sh` then `open build/Showready.app`.
+- Build the .app: `./scripts/build-app.sh` then `open build/Showready.app`. Signs with the Developer ID when present, ad-hoc otherwise (CI).
+- Release: `./scripts/release.sh <version>` (needs a `## [version]` CHANGELOG.md entry; tags), then `git push && git push --tags`, `./scripts/notarize.sh` (builds, notarises, staples a DMG into build/dist), then `gh release create v<version> <dmg> --title "v<version>" --notes "..."`. Release notes are short markdown bullets — they render inside the in-app update alert.
 - The API key lives in the Keychain (Settings in the app). An `OPENAI_API_KEY` env var is used if the Keychain is empty.
+- Versioning/updates: `VERSION` is the single source of truth (semver; patch for fixes, minor for features); `CHANGELOG.md` has one section per release. The pipeline is ported from Murmur — see `~/code/murmur/docs/SELF-UPDATE.md` for the full design. The app checks GitHub releases daily/weekly (`UpdateChecker`/`UpdatePreference` in ShowreadyCore), and one-click installs after verifying signature, Team ID 7CMPG6N65Y, notarisation, and no downgrade (`Updater`/`UpdateController` in the app, offered via an alert; also in Settings → Updates). The notarytool keychain profile is named "murmur" (account-level, shared across apps). Download page: `docs/index.html` on GitHub Pages.
 
 ## Product rules (from the owner)
 - Clean up glare, clutter, color, lens distortion (fisheye) and harsh shadows.
@@ -27,6 +29,7 @@ macOS SwiftUI app (Swift package, macOS 14+) that turns owner-shot real estate p
 - First live test (2026-11-05): a twilight edit redrew the house (moved stairs, new porch, invented windows). In response: prompts rewritten to frame twilight/golden hour/sunset as relight-only with hard structure lock-down, and a local structure check (`StructureCheck.swift`, Sobel-edge correlation) now scores every AI result against the original. Scores below 0.5 get a "structure changed" warning in the UI and a REVIEW flag in `edit-log.csv`. Calibrated on the real failure pair: repaint 0.14 vs honest relights 0.87–0.97. Note: `input_fidelity` must NOT be sent to gpt-image-2+ (400 error); only gpt-image-1.x accepts it.
 - Next: re-test twilight on the owner's photos and check the warning fires/clears correctly.
 - Workflow features (2026-11-05): saved default edit presets per photo kind (persisted in AppSettings; "Save as my default" / "Apply to every X photo" in the edit panel), listings (sidebar picker chooses where imports go, sections group photos, exports split into one subfolder per listing), and approval (Approve button / A key on the chosen version, cleared when the version changes; "Save Approved" in the toolbar exports all approved photos; edit-log.csv gained an `approved` column). Import dialog deadlock fixed (NSOpenPanel must be created outside SwiftUI's action dispatch); import and quick-enhance concurrency capped.
+- Releases/updates (2026-11-05): v0.1.0 cut with the Murmur-style pipeline (see Commands). The listing picker now filters the library to the chosen listing ("All photos" shows every section); it previously only chose where imports went, which read as a bug.
 - Known: ~60 Swift 6 Sendable warnings (NSImage crossing actors); harmless in Swift 5 mode.
 - Interior/exterior auto-detection uses Vision classification and can be wrong; the user can switch it per photo.
 - Pricing for gpt-image-2.5/2.6 has no published per-image token table; estimates are rough until calibrated from real usage.
