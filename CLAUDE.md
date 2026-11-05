@@ -24,7 +24,8 @@ macOS SwiftUI app (Swift package, macOS 14+) that turns owner-shot real estate p
 - Core tests pass. CI (`.github/workflows/build.yml`) builds on macOS and publishes `Showready.zip` to the `latest` release.
 - `.github/workflows/demo.yml` runs the app unattended on a Mac runner: free local enhance by default; real AI edits when a pushed commit message contains `[demo-ai]` and the `OPENAI_API_KEY` repo secret exists (not set yet).
 - Default model `gpt-image-2`, medium quality, 2048 px long edge (about $0.15 per photo).
-- NOT yet tested against the live OpenAI API. Next: test real edits on the owner's photos, compare before/after, tune `PromptBuilder.swift`.
+- First live test (2026-11-05): a twilight edit redrew the house (moved stairs, new porch, invented windows). In response: prompts rewritten to frame twilight/golden hour/sunset as relight-only with hard structure lock-down, and a local structure check (`StructureCheck.swift`, Sobel-edge correlation) now scores every AI result against the original. Scores below 0.5 get a "structure changed" warning in the UI and a REVIEW flag in `edit-log.csv`. Calibrated on the real failure pair: repaint 0.14 vs honest relights 0.87–0.97. Note: `input_fidelity` must NOT be sent to gpt-image-2+ (400 error); only gpt-image-1.x accepts it.
+- Next: re-test twilight on the owner's photos and check the warning fires/clears correctly.
 - Known: ~60 Swift 6 Sendable warnings (NSImage crossing actors); harmless in Swift 5 mode.
 - Interior/exterior auto-detection uses Vision classification and can be wrong; the user can switch it per photo.
 - Pricing for gpt-image-2.5/2.6 has no published per-image token table; estimates are rough until calibrated from real usage.

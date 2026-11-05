@@ -40,6 +40,11 @@ struct EditVersion: Equatable {
     var edits: [String]
     var altered: Bool
     var cost: Double
+    /// Edge-similarity to the original (0-1); nil for local edits, which cannot drift.
+    var structureScore: Double? = nil
+
+    /// The AI changed the structure of the scene; the user should review before using it.
+    var structureSuspect: Bool { (structureScore ?? 1) < StructureCheck.warnBelow }
 }
 
 /// Settings that persist between launches.
@@ -230,7 +235,7 @@ final class AppStore: ObservableObject {
         let altered = p.options.isMaterialAlteration
 
         do {
-            let work = Task.detached(priority: .userInitiated) { () -> (EditResult, [URL]) in
+            let work = Task.detached(priority: .userInitiated) { () -> (EditResult, [URL], [Double?]) in
                 // Levelling rotates the photo, which would misplace a painted mask.
                 let upload = try ImageTools.uploadData(sourceURL, size: size, levelHorizon: level && !hasMask, asPNG: hasMask)
                 let crop = ImageTools.fillCrop(source: sourceSize, target: size)
@@ -245,7 +250,10 @@ final class AppStore: ObservableObject {
                     try data.write(to: u)
                     urls.append(u)
                 }
-                return (r, urls)
+                let scores = urls.map {
+                    ImageTools.structureScore(sourceURL: sourceURL, resultURL: $0, leveled: level && !hasMask)
+                }
+                return (r, urls, scores)
             }
             let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
 
@@ -259,8 +267,8 @@ final class AppStore: ObservableObject {
                                              edits: p.options.summary))
             guard let j = index(id) else { return }
             let perImage = (actual ?? est.dollars) / Double(max(result.1.count, 1))
-            let versions = result.1.map {
-                EditVersion(url: $0, edits: summary, altered: altered, cost: perImage)
+            let versions = zip(result.1, result.2).map {
+                EditVersion(url: $0, edits: summary, altered: altered, cost: perImage, structureScore: $1)
             }
             photos[j].results.append(contentsOf: versions)
             photos[j].chosen = photos[j].results.count - versions.count
@@ -327,7 +335,7 @@ final class AppStore: ObservableObject {
         isRunning = true
         defer { isRunning = false }
         return await Task.detached(priority: .userInitiated) { () -> [String] in
-            var csv = "file,original,edits,digitally_altered,cost_usd\n"
+            var csv = "file,original,edits,digitally_altered,structure_check,cost_usd\n"
             var failures: [String] = []
             for (n, job) in jobs.enumerated() {
                 let (base, original, v) = job
@@ -336,7 +344,8 @@ final class AppStore: ObservableObject {
                 do {
                     try ImageTools.export(v.url, to: folder.appendingPathComponent(name), longEdge: longEdge)
                     let edits = v.edits.joined(separator: "; ").replacingOccurrences(of: "\"", with: "'")
-                    csv += "\"\(name)\",\"\(original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(String(format: "%.4f", v.cost))\n"
+                    let check = v.structureScore.map { String(format: $0 < StructureCheck.warnBelow ? "REVIEW %.2f" : "ok %.2f", $0) } ?? ""
+                    csv += "\"\(name)\",\"\(original)\",\"\(edits)\",\(v.altered ? "yes" : "no"),\(check),\(String(format: "%.4f", v.cost))\n"
                 } catch {
                     failures.append(base)
                 }

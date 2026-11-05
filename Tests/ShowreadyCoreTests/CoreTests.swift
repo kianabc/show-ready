@@ -61,10 +61,48 @@ final class CoreTests: XCTestCase {
         let p = PromptBuilder.prompt(for: o)
         XCTAssertTrue(p.contains("STRICT RULES"))
         XCTAssertTrue(p.contains("twilight"))
+        XCTAssertTrue(p.contains("lighting change ONLY"))
+        XCTAssertTrue(p.contains("skip that edit"))
+        XCTAssertTrue(p.contains("same number of doors, windows, steps"))
         XCTAssertTrue(p.contains("soft white clouds"))
         XCTAssertTrue(p.contains("basketball hoop"))
         XCTAssertFalse(p.contains("Window pull"))
         XCTAssertTrue(o.isMaterialAlteration)
+    }
+
+    func testStructureCheck() {
+        let w = 64, h = 64
+        func rect(_ img: inout [Float], _ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int, _ v: Float) {
+            for y in y0..<y1 { for x in x0..<x1 { img[y * w + x] = v } }
+        }
+        // A synthetic house: body, window, door.
+        var a = [Float](repeating: 0.2, count: w * h)
+        rect(&a, 8, 20, 56, 56, 0.6)
+        rect(&a, 14, 28, 24, 40, 0.9)
+        rect(&a, 36, 30, 44, 56, 0.35)
+
+        // Identical image: perfect score.
+        XCTAssertEqual(StructureCheck.score(a, a, width: w, height: h), 1.0, accuracy: 0.001)
+
+        // Relight (gain and offset, like a twilight dim): structure unchanged, high score.
+        let relit = a.map { $0 * 0.4 + 0.05 }
+        let relitScore = StructureCheck.score(a, relit, width: w, height: h)
+        XCTAssertGreaterThan(relitScore, 0.9)
+
+        // One-pixel resampling shift: still comfortably above the warning line.
+        var shifted = a
+        for y in 0..<h { for x in 1..<w { shifted[y * w + x] = a[y * w + x - 1] } }
+        XCTAssertGreaterThan(StructureCheck.score(a, shifted, width: w, height: h), StructureCheck.warnBelow)
+
+        // Repaint: same kind of scene, but the house was redrawn — different
+        // footprint, window and door elsewhere (like the real twilight failure).
+        var b = [Float](repeating: 0.2, count: w * h)
+        rect(&b, 4, 14, 48, 56, 0.6)
+        rect(&b, 32, 20, 44, 34, 0.9)
+        rect(&b, 10, 28, 20, 56, 0.35)
+        let repaintScore = StructureCheck.score(a, b, width: w, height: h)
+        XCTAssertLessThan(repaintScore, relitScore)
+        XCTAssertLessThan(repaintScore, StructureCheck.warnBelow)
     }
 
     func testRequestAndParse() throws {

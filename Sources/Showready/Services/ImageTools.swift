@@ -140,6 +140,33 @@ enum ImageTools {
         return f.outputImage?.cropped(to: img.extent) ?? img
     }
 
+    /// Luminance of `img` scale-filled to exactly `size`, row-major 0...1.
+    static func grayPixels(_ img: CIImage, size: PixelSize) -> [Float]? {
+        let w = size.width, h = size.height
+        guard let cg = context.createCGImage(resized(img, to: size), from: CGRect(x: 0, y: 0, width: w, height: h))
+        else { return nil }
+        var bytes = [UInt8](repeating: 0, count: w * h)
+        guard let ctx = CGContext(data: &bytes, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return bytes.map { Float($0) / 255 }
+    }
+
+    /// Edge-similarity between the source photo (prepared the same way as the upload)
+    /// and an API result. Low scores mean the model changed the structure of the scene.
+    static func structureScore(sourceURL: URL, resultURL: URL, leveled wasLeveled: Bool) -> Double? {
+        guard var src = try? loadCI(sourceURL), let res = try? loadCI(resultURL) else { return nil }
+        if wasLeveled { src = leveled(src) }
+        let aspect = res.extent.width / max(res.extent.height, 1)
+        let long = StructureCheck.workingEdge
+        let small = aspect >= 1
+            ? PixelSize(width: long, height: max(16, Int((CGFloat(long) / aspect).rounded())))
+            : PixelSize(width: max(16, Int((CGFloat(long) * aspect).rounded())), height: long)
+        guard let a = grayPixels(src, size: small), let b = grayPixels(res, size: small) else { return nil }
+        return StructureCheck.score(a, b, width: small.width, height: small.height)
+    }
+
     /// Writes the final file at the chosen long edge with metadata stripped.
     static func export(_ resultURL: URL, to dest: URL, longEdge: Int?) throws {
         var img = try loadCI(resultURL)

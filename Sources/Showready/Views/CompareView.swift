@@ -18,6 +18,7 @@ struct CompareView: View {
     @State private var edited: NSImage?
     @State private var brush: CGFloat = 0.025
     @State private var currentStroke: [CGPoint] = []
+    @State private var keyMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,6 +54,12 @@ struct CompareView: View {
                 .contentShape(Rectangle())
                 .gesture(mode == .mark ? paintGesture(rect) : nil)
             }
+            if photo.chosenVersion?.structureSuspect == true {
+                Label("This version looks structurally different from the original. The AI may have redrawn parts of the building — compare carefully and re-run or discard it.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange).font(.callout).padding(8)
+                    .frame(maxWidth: .infinity).background(.orange.opacity(0.1))
+            }
             if case .failed(let msg) = photo.status {
                 Text(msg).foregroundStyle(.red).font(.callout).padding(8)
                     .frame(maxWidth: .infinity).background(.red.opacity(0.08))
@@ -64,6 +71,31 @@ struct CompareView: View {
             if let r = photo.chosenResult { edited = await load(r) }
             if edited != nil && mode == .original { mode = .compare }
         }
+        .onAppear { installKeyMonitor() }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
+        }
+    }
+
+    /// Left/right arrow keys switch versions, unless the user is typing in a text field.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard photo.results.count > 1,
+                  event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+                  !(NSApp.keyWindow?.firstResponder is NSTextView)
+            else { return event }
+            switch event.keyCode {
+            case 123: stepVersion(-1); return nil   // left arrow
+            case 124: stepVersion(1); return nil    // right arrow
+            default: return event
+            }
+        }
+    }
+
+    private func stepVersion(_ delta: Int) {
+        photo.chosen = min(max(photo.chosen + delta, 0), photo.results.count - 1)
     }
 
     private var showEditedOnly: Bool { mode == .edited }
@@ -82,10 +114,18 @@ struct CompareView: View {
             }
             Spacer()
             if photo.results.count > 1 {
+                Button { stepVersion(-1) } label: { Image(systemName: "chevron.left") }
+                    .disabled(photo.chosen == 0)
+                    .help("Previous version (←)")
                 Picker("Version", selection: $photo.chosen) {
-                    ForEach(photo.results.indices, id: \.self) { Text("v\($0 + 1)").tag($0) }
+                    ForEach(photo.results.indices, id: \.self) { i in
+                        Text("v\(i + 1)\(photo.results[i].structureSuspect ? " ⚠" : "")").tag(i)
+                    }
                 }
                 .frame(width: 130)
+                Button { stepVersion(1) } label: { Image(systemName: "chevron.right") }
+                    .disabled(photo.chosen == photo.results.count - 1)
+                    .help("Next version (→)")
             }
             Text("\(photo.size.width)×\(photo.size.height)").font(.caption).foregroundStyle(.secondary)
         }

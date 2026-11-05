@@ -6,9 +6,12 @@ import Foundation
 public enum PromptBuilder {
     public static let guardrails = """
     STRICT RULES (this is a real estate listing photo and must stay truthful):
+    - This is a retouch of the photograph provided, NOT a new picture. The result must be the same photo of the same property: flipping between the original and the edit, every edge of the building and landscaping must line up exactly.
     - Keep the exact same camera position, framing, field of view, crop and aspect ratio.
     - Do not change the architecture or anything permanent: walls, ceilings, floors, windows, doors, trim, cabinets, countertops, built-ins, fixtures, appliances, stairs, fireplaces, roof, siding, landscaping layout, fences, driveways, utility lines and the view.
+    - The building must match the original exactly: the same number of doors, windows, steps, porch posts and railings, in the same positions, sizes and shapes. Do not move or redesign stairs, walkways, porches or planting beds. House and unit numbers stay exactly as photographed.
     - Do not make rooms or the lot look larger or smaller. Do not move, resize, add or remove walls, windows or doors.
+    - If a requested edit cannot be done without breaking these rules, skip that edit and leave that part of the photo unchanged.
     - Do not add furniture, decor or objects unless explicitly asked below.
     - Keep materials, colors and finishes of permanent surfaces true to life. Do not hide damage or defects.
     - The result must look like a real, natural photograph taken by a professional real estate photographer. No illustration, no HDR halos, no oversaturation, no visible artifacts.
@@ -18,6 +21,7 @@ public enum PromptBuilder {
     public static func prompt(for o: EditOptions, hasMask: Bool = false) -> String {
         var lines: [String] = []
         lines.append("Edit this \(o.kind == .interior ? "interior" : "exterior") real estate photo so it looks professionally photographed and edited for an MLS listing.")
+        lines.append("This is a retouching job on the exact photograph provided, never a redesign: the same property, from the same angle, with every permanent feature in the same place. Change only what the edits below ask for.")
         lines.append("")
         lines.append("EDITS TO MAKE:")
 
@@ -78,12 +82,12 @@ public enum PromptBuilder {
             case .blueWithClouds:
                 lines.append("- Replace a dull, white or gray sky with a natural blue sky with a few soft white clouds. Blend cleanly around the roofline, trees and wires with no halos.")
             case .goldenHour:
-                lines.append("- Make the scene look like late afternoon golden hour: warm, soft sunlight and a soft blue-to-warm sky. Keep it natural.")
+                lines.append("- Relight the scene as late afternoon golden hour: warm, soft sunlight and a soft blue-to-warm sky. This changes light and sky only, nothing else. Keep it natural.")
             case .sunset:
-                lines.append("- Replace the sky with a natural, tasteful sunset (soft orange, pink and blue tones) and match the light on the house to it. Do not overdo the colors.")
+                lines.append("- Replace the sky with a natural, tasteful sunset (soft orange, pink and blue tones) and match the light on the house to it. This changes light and sky only, nothing else. Do not overdo the colors.")
             }
             if o.twilight {
-                lines.append("- Convert to a professional twilight (dusk) photo: deep blue evening sky with a soft glow at the horizon, all interior windows glowing with warm light, existing exterior and landscape lights turned on, overall exposure dimmed naturally. Keep every architectural detail visible.")
+                lines.append("- Relight this exact photo as a professional twilight (dusk) shot: deepen the sky to early-evening blue with a soft glow at the horizon, make the existing windows glow with warm interior light, turn on existing exterior and landscape fixtures, and dim the overall exposure naturally. This is a lighting change ONLY: every brick, window, door, stair, railing, path, plant and house number stays exactly where it is in the original, at the same size and shape. Do not redraw, simplify or tidy any part of the house or yard.")
             }
             if o.greenLawn {
                 lines.append("- Make existing lawn areas look healthy and evenly green and fill small bare patches. Do not add lawn where there is none, and do not change planting beds, trees or hardscape.")
