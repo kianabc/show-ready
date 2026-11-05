@@ -3,6 +3,14 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.4.0] — 2026-11-05
+
+### Added
+- Scriptable import: a staged folder (and listing) can be imported unattended at launch.
+
+### Improved
+- The app is now called Rocco Show Ready.
+
 ## [0.3.0] — 2026-11-05
 
 ### Added

@@ -33,7 +33,13 @@ struct ContentView: View {
             }
         }
         .toolbar { toolbar }
-        .task { if DemoRunner.isEnabled { await DemoRunner.run(store) } }
+        .task {
+            if DemoRunner.isEnabled {
+                await DemoRunner.run(store)
+            } else {
+                store.importFromEnvironment()
+            }
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             for p in providers {
                 _ = p.loadObject(ofClass: URL.self) { url, _ in

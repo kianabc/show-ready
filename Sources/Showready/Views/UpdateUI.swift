@@ -58,7 +58,7 @@ enum ReleaseNotesView {
             guard let sub else { return }
             if sub.hasPrefix("•") {
                 body.addAttribute(.paragraphStyle, value: hanging, range: range)
-            } else if sub.hasPrefix("Showready ") {
+            } else if sub.hasPrefix("Rocco Show Ready ") {
                 body.addAttribute(.paragraphStyle, value: heading, range: range)
             }
         }
@@ -93,7 +93,7 @@ enum UpdateOfferAlert {
 
     static func make(version: String, notes: String) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = "Showready \(version) is available"
+        alert.messageText = "Rocco Show Ready \(version) is available"
         alert.informativeText = "Here's everything that's changed since your version."
         alert.accessoryView = ReleaseNotesView.make(markdown: notes)
         alert.addButton(withTitle: "Update and Restart")
@@ -114,7 +114,7 @@ final class UpdateProgressWindow {
     init(version: String) {
         let content = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 96))
 
-        let title = NSTextField(labelWithString: "Updating Showready to \(version)")
+        let title = NSTextField(labelWithString: "Updating Rocco Show Ready to \(version)")
         title.font = .systemFont(ofSize: 13, weight: .semibold)
         title.frame = NSRect(x: 20, y: 62, width: 340, height: 18)
 
@@ -140,7 +140,7 @@ final class UpdateProgressWindow {
             defer: false
         )
         window.contentView = content
-        window.title = "Showready"
+        window.title = "Rocco Show Ready"
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

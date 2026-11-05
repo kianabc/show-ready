@@ -128,7 +128,7 @@ public actor UpdateChecker {
                 }
                 .joined(separator: "\n")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return "**Showready \(version)**\n\(cleaned)"
+            return "**Rocco Show Ready \(version)**\n\(cleaned)"
         }
         .joined(separator: "\n\n")
     }

@@ -85,7 +85,7 @@ trap 'rm -rf "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/"
 # The Applications symlink is what makes "drag to install" obvious.
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Showready" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname "Rocco Show Ready" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 
 step "Signing and notarising the disk image"
 IDENTITY="$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')"

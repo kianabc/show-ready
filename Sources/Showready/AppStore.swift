@@ -337,6 +337,24 @@ final class AppStore: ObservableObject {
 
     // MARK: Import
 
+    /// Unattended import for scripting: a folder to import at launch, with an
+    /// optional listing it goes into. Read from SHOWREADY_IMPORT_DIR /
+    /// SHOWREADY_IMPORT_LISTING, or from one-shot `pendingImportDir` /
+    /// `pendingImportListing` defaults (cleared once read) — the defaults route
+    /// exists because `open` can't pass environment, and launching the binary
+    /// directly ties the app to the caller's TCC file permissions.
+    func importFromEnvironment() {
+        let env = ProcessInfo.processInfo.environment
+        let defaults = UserDefaults.standard
+        let dir = env["SHOWREADY_IMPORT_DIR"] ?? defaults.string(forKey: "pendingImportDir")
+        let listing = env["SHOWREADY_IMPORT_LISTING"] ?? defaults.string(forKey: "pendingImportListing")
+        defaults.removeObject(forKey: "pendingImportDir")
+        defaults.removeObject(forKey: "pendingImportListing")
+        guard let dir else { return }
+        if let listing, !listing.isEmpty { addListing(listing) }
+        importURLs([URL(fileURLWithPath: dir)])
+    }
+
     func importURLs(_ urls: [URL]) {
         var files: [URL] = []
         for u in urls {

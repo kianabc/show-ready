@@ -1,6 +1,8 @@
-# Showready
+# Showready (product name: "Rocco Show Ready")
 
 macOS SwiftUI app (Swift package, macOS 14+) that turns owner-shot real estate photos into MLS-ready images using OpenAI image models via `POST /v1/images/edits`.
+
+The user-facing name is **Rocco Show Ready** (CFBundleName/DisplayName, window title, updater copy, download page). The bundle filename (`Showready.app`), executable, bundle id (`com.showready.app`), repo, and code names stay `Showready` — the self-updater verifies and replaces `/Applications/Showready.app` by that name, and macOS permission grants are keyed to the bundle id, so renaming those would orphan installs.
 
 ## Layout
 - `Sources/ShowreadyCore`: pure Swift, no AppKit. Model catalog and prices (`ImageModel.swift`), output sizing (`OutputSize.swift`), edit options (`EditOptions.swift`), prompt text and truthfulness guardrails (`PromptBuilder.swift`), cost estimate and calibration (`CostEstimator.swift`), OpenAI client (`OpenAIImageClient.swift`), spend ledger.
@@ -30,6 +32,7 @@ macOS SwiftUI app (Swift package, macOS 14+) that turns owner-shot real estate p
 - Next: re-test twilight on the owner's photos and check the warning fires/clears correctly.
 - Workflow features (2026-11-05): saved default edit presets per photo kind (persisted in AppSettings; "Save as my default" / "Apply to every X photo" in the edit panel), listings (sidebar picker chooses where imports go, sections group photos, exports split into one subfolder per listing), and approval (Approve button / A key on the chosen version, cleared when the version changes; "Save Approved" in the toolbar exports all approved photos; edit-log.csv gained an `approved` column). Import dialog deadlock fixed (NSOpenPanel must be created outside SwiftUI's action dispatch); import and quick-enhance concurrency capped.
 - Releases/updates (2026-11-05): v0.1.0 cut with the Murmur-style pipeline (see Commands). The listing picker now filters the library to the chosen listing ("All photos" shows every section); it previously only chose where imports went, which read as a bug.
+- Library persistence + recovery (2026-11-05): the library snapshots to `Application Support/Showready/library.json`. Before persistence existed the library was lost on quit; it was rebuilt by importing the originals (local copy in `~/Pictures/Rocco Show Ready/Photos/Originals`, Finder-copied from Google Drive because TCC silently blocks non-user-initiated reads of `~/Library/CloudStorage` — both for shells and for the app itself) and merging the orphaned AI results back in by matching spend-ledger timestamps to Results/ file birth times. Unattended import: write `pendingImportDir`/`pendingImportListing` defaults (or SHOWREADY_IMPORT_DIR/_LISTING env) and launch; one-shot, cleared on read. Import is non-recursive — point it at the folder that directly contains the images.
 - Known: ~60 Swift 6 Sendable warnings (NSImage crossing actors); harmless in Swift 5 mode.
 - Interior/exterior auto-detection uses Vision classification and can be wrong; the user can switch it per photo.
 - Pricing for gpt-image-2.5/2.6 has no published per-image token table; estimates are rough until calibrated from real usage.

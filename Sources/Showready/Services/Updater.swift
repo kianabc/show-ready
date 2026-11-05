@@ -76,9 +76,9 @@ actor Updater {
         let work = try makeWorkDirectory()
         let dmg = work.appendingPathComponent("update.dmg")
 
-        onProgress(UpdateProgress("Downloading Showready \(update.version)…", 0))
+        onProgress(UpdateProgress("Downloading Rocco Show Ready \(update.version)…", 0))
         try await download(remote, to: dmg) { fraction in
-            onProgress(UpdateProgress("Downloading Showready \(update.version)…", fraction))
+            onProgress(UpdateProgress("Downloading Rocco Show Ready \(update.version)…", fraction))
         }
         onProgress(UpdateProgress("Checking the download…"))
 

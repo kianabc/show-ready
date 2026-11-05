@@ -25,8 +25,8 @@ final class UpdateTests: XCTestCase {
             (SemanticVersion("0.2.0")!, "## What's new\n- **Faster.** Everything.\n---\nEnjoy"),
             (SemanticVersion("0.1.1")!, "- Fixed a crash"),
         ])
-        XCTAssertTrue(notes.contains("**Showready 0.2.0**"))
-        XCTAssertTrue(notes.contains("**Showready 0.1.1**"))
+        XCTAssertTrue(notes.contains("**Rocco Show Ready 0.2.0**"))
+        XCTAssertTrue(notes.contains("**Rocco Show Ready 0.1.1**"))
         XCTAssertTrue(notes.contains("**What's new**"))
         XCTAssertFalse(notes.contains("## "))
         XCTAssertFalse(notes.contains("\n---"))

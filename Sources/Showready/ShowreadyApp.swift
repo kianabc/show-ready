@@ -13,7 +13,7 @@ struct ShowreadyApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Showready") {
+        WindowGroup("Rocco Show Ready") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 1100, minHeight: 700)
