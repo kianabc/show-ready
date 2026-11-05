@@ -3,6 +3,15 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.3.0] — 2026-11-05
+
+### Added
+- Up and down arrow keys move through the photo list.
+
+### Improved
+- A photo's first (or only) version is selected for export automatically; once more versions exist, the choice is yours again.
+- "Approve" is now "Select": a clearly pressable blue button that turns green once a version is chosen.
+
 ## [0.2.0] — 2026-11-05
 
 ### Added

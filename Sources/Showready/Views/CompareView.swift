@@ -71,9 +71,11 @@ struct CompareView: View {
             if let r = photo.chosenResult { edited = await load(r) }
             if edited != nil && mode == .original { mode = .compare }
         }
-        .onChange(of: photo.chosen) {
-            // A different version is on screen now; the old approval no longer applies.
-            photo.approved = false
+        .onChange(of: VersionKey(id: photo.id, chosen: photo.chosen)) { old, new in
+            // A different version of the *same* photo is on screen now, so the
+            // old selection no longer applies. Switching to another photo must
+            // not clear that photo's selection.
+            if old.id == new.id { photo.approved = false }
         }
         .onAppear { installKeyMonitor() }
         .onDisappear {
@@ -82,8 +84,9 @@ struct CompareView: View {
         }
     }
 
-    /// Left/right arrows switch versions and A toggles approval,
-    /// unless the user is typing in a text field.
+    /// Left/right arrows switch versions, up/down move through the photo
+    /// list, and A toggles the selected-for-export mark — unless the user is
+    /// typing in a text field.
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -93,6 +96,8 @@ struct CompareView: View {
             switch event.keyCode {
             case 123 where photo.results.count > 1: stepVersion(-1); return nil   // left arrow
             case 124 where photo.results.count > 1: stepVersion(1); return nil    // right arrow
+            case 126: store.stepSelection(-1); return nil                         // up arrow
+            case 125: store.stepSelection(1); return nil                          // down arrow
             default:
                 if event.charactersIgnoringModifiers?.lowercased() == "a", photo.chosenResult != nil {
                     photo.approved.toggle()
@@ -105,6 +110,11 @@ struct CompareView: View {
 
     private func stepVersion(_ delta: Int) {
         photo.chosen = min(max(photo.chosen + delta, 0), photo.results.count - 1)
+    }
+
+    private struct VersionKey: Equatable {
+        let id: PhotoItem.ID
+        let chosen: Int
     }
 
     private var showEditedOnly: Bool { mode == .edited }
@@ -123,12 +133,15 @@ struct CompareView: View {
             }
             Spacer()
             if photo.chosenResult != nil {
-                Toggle(isOn: $photo.approved) {
-                    Label(photo.approved ? "Approved" : "Approve",
-                          systemImage: photo.approved ? "checkmark.seal.fill" : "checkmark.seal")
+                // Blue and clearly pressable until chosen, green once chosen.
+                Button { photo.approved.toggle() } label: {
+                    Label(photo.approved ? "Selected" : "Select",
+                          systemImage: photo.approved ? "checkmark.circle.fill" : "circle")
                 }
-                .toggleStyle(.button).tint(.green)
-                .help("Approve this edit for saving (A)")
+                .buttonStyle(.borderedProminent)
+                .tint(photo.approved ? .green : .accentColor)
+                .help(photo.approved ? "This version will be exported (A toggles)"
+                                     : "Use this version for export (A)")
             }
             if photo.results.count > 1 {
                 Button { stepVersion(-1) } label: { Image(systemName: "chevron.left") }

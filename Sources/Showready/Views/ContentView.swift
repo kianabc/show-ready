@@ -64,11 +64,11 @@ struct ContentView: View {
                 Button { store.cancel() } label: { Label("Stop", systemImage: "stop.fill") }
             }
             Button { store.saveApproved() } label: {
-                Label("Save Approved", systemImage: "checkmark.seal")
+                Label("Save Selected", systemImage: "checkmark.circle")
             }
             .disabled(store.approvedIDs.isEmpty)
-            .help(store.approvedIDs.isEmpty ? "Approve edits first (A in the compare view)"
-                                            : "Save all \(store.approvedIDs.count) approved photos")
+            .help(store.approvedIDs.isEmpty ? "Select versions first (A in the compare view)"
+                                            : "Save all \(store.approvedIDs.count) selected photos")
             Button { store.export(store.selectedIDs.isEmpty ? store.photos.map(\.id) : store.selectedIDs) } label: {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
@@ -121,7 +121,7 @@ struct LibraryView: View {
                 let total = store.estimate(ids: visible.map(\.id))
                 let approved = visible.filter(\.approved).count
                 HStack {
-                    Text("\(visible.count) photos\(approved > 0 ? ", \(approved) approved" : "")")
+                    Text("\(visible.count) photos\(approved > 0 ? ", \(approved) selected" : "")")
                     Spacer()
                     Text("All: ≈\(total.dollarString)")
                 }
@@ -168,9 +168,9 @@ struct LibraryView: View {
                     HStack(spacing: 4) {
                         Text(p.name).lineLimit(1)
                         if p.approved {
-                            Image(systemName: "checkmark.seal.fill")
+                            Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green).font(.caption)
-                                .help("Approved")
+                                .help("Selected for export")
                         }
                     }
                     HStack(spacing: 6) {

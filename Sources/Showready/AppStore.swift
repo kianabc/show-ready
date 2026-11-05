@@ -184,8 +184,9 @@ final class AppStore: ObservableObject {
                 .map { EditVersion(url: $0.url, edits: $0.edits, altered: $0.altered,
                                    cost: $0.cost, structureScore: $0.structureScore) }
             item.chosen = item.results.indices.contains(p.chosen) ? p.chosen : max(item.results.count - 1, 0)
-            // Approval is only meaningful while the approved version still exists.
-            item.approved = p.approved && p.results.count == item.results.count
+            // Approval is only meaningful while the approved version still
+            // exists; a single surviving version is auto-selected.
+            item.approved = (p.approved && p.results.count == item.results.count) || item.results.count == 1
             item.maskStrokes = p.maskStrokes
             if !item.results.isEmpty { item.status = .done }
             return item
@@ -310,9 +311,29 @@ final class AppStore: ObservableObject {
         return out
     }
 
-    // MARK: Approval
+    // MARK: Selection / approval
 
     var approvedIDs: [PhotoItem.ID] { photos.filter { $0.approved && $0.chosenResult != nil }.map(\.id) }
+
+    /// A photo with exactly one version has an obvious export, so it is
+    /// selected automatically. The moment alternatives exist the choice is the
+    /// user's: the automatic selection is withdrawn and the Select button (or
+    /// A) takes over. Called after every result append.
+    private func applyAutoSelection(at j: Int) {
+        photos[j].approved = photos[j].results.count == 1
+    }
+
+    /// Moves the single selection up (-1) or down (+1) through the photos the
+    /// sidebar is showing, in display order.
+    func stepSelection(_ delta: Int) {
+        let order = listingSections.flatMap(\.items).map(\.id)
+        guard !order.isEmpty else { return }
+        guard let current = selection.first, let idx = order.firstIndex(of: current) else {
+            selection = [delta > 0 ? order.first! : order.last!]
+            return
+        }
+        selection = [order[min(max(idx + delta, 0), order.count - 1)]]
+    }
 
     // MARK: Import
 
@@ -477,6 +498,7 @@ final class AppStore: ObservableObject {
             photos[j].results.append(contentsOf: versions)
             photos[j].chosen = photos[j].results.count - versions.count
             photos[j].status = .done
+            applyAutoSelection(at: j)
         } catch is CancellationError {
             if let j = index(id) { photos[j].status = .idle }
         } catch let e as URLError where e.code == .cancelled {
@@ -523,6 +545,7 @@ final class AppStore: ObservableObject {
                             self.photos[j].results.append(EditVersion(url: out, edits: ["local auto-enhance"], altered: false, cost: 0))
                             self.photos[j].chosen = self.photos[j].results.count - 1
                             self.photos[j].status = .done
+                            self.applyAutoSelection(at: j)
                         case .failure(let e):
                             self.photos[j].status = .failed(e.localizedDescription)
                         }
