@@ -8,7 +8,8 @@
 <meta property="og:title" content="Rocco Show Ready — MLS-ready real estate photos">
 <meta property="og:description" content="Turn owner-shot photos into MLS-ready images, without changing the house.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="logo.png">
 <style>
   /* Self-contained on purpose: no CDN, no fonts, no analytics. The page
      shouldn't phone anywhere the app wouldn't. */
@@ -44,10 +45,8 @@
   nav { padding: 28px 0; display: flex; align-items: center; justify-content: space-between; }
   .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; letter-spacing: -.01em; }
   .brand:hover { text-decoration: none; }
-  .brand .dot {
-    width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
-    background: linear-gradient(160deg, #2c2a63, var(--accent-2)); font-size: 15px;
-  }
+  .brand .logo { width: 34px; height: 34px; display: block; }
+  .hero-logo { width: 132px; height: 132px; display: block; margin: 0 auto 18px; }
   .nav-link { color: var(--muted); font-size: 14px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; }
   .nav-link:hover { color: var(--ink); border-color: var(--line-2); text-decoration: none; }
 
@@ -145,12 +144,13 @@
 
 <div class="wrap">
   <nav>
-    <a class="brand" href="#"><span class="dot">🏡</span>Rocco Show Ready</a>
+    <a class="brand" href="#"><img class="logo" src="logo.png" alt="">Rocco Show Ready</a>
     <a class="nav-link" href="https://github.com/kianabc/show-ready">GitHub ↗</a>
   </nav>
 </div>
 
 <header class="wrap">
+  <img class="hero-logo" src="logo.png" alt="Rocco Show Ready logo">
   <h1>Owner-shot photos in.<span class="accent">MLS-ready photos out.</span></h1>
   <p class="tagline">Drop in the photos a seller took on their phone. Rocco Show Ready fixes the glare, the color, the fisheye and the harsh shadows — and never, ever changes the house.</p>
 

@@ -3,6 +3,14 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.7.0] — 2026-11-06
+
+### Added
+- A new, colorful app icon and logo. The logo fills the middle of the window when no photo is selected.
+
+### Improved
+- Saving now clearly asks which folder to save into, and opens in the folder you used last time.
+
 ## [0.6.1] — 2026-11-05
 
 ### Fixed

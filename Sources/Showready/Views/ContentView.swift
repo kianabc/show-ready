@@ -21,8 +21,16 @@ struct ContentView: View {
                         .id(id)
                 } else if store.photos.isEmpty {
                     EmptyStateView()
+                } else if store.selection.isEmpty {
+                    VStack(spacing: 14) {
+                        LogoView(size: 180)
+                        Text("Rocco Show Ready").font(.title.weight(.semibold))
+                        Text("Select a photo to start editing")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    Text(store.selection.isEmpty ? "Select a photo" : "\(store.selection.count) photos selected")
+                    Text("\(store.selection.count) photos selected")
                         .font(.title3).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -70,14 +78,15 @@ struct ContentView: View {
                 Button { store.cancel() } label: { Label("Stop", systemImage: "stop.fill") }
             }
             Button { store.saveApproved() } label: {
-                Label("Save Selected", systemImage: "checkmark.circle")
+                Label("Save Selected…", systemImage: "checkmark.circle")
             }
             .disabled(store.approvedIDs.isEmpty)
             .help(store.approvedIDs.isEmpty ? "Select versions first (A in the compare view)"
-                                            : "Save all \(store.approvedIDs.count) selected photos")
+                                            : "Choose a folder and save all \(store.approvedIDs.count) selected photos")
             Button { store.export(store.selectedIDs.isEmpty ? store.photos.map(\.id) : store.selectedIDs) } label: {
-                Label("Export", systemImage: "square.and.arrow.up")
+                Label("Export…", systemImage: "square.and.arrow.up")
             }
+            .help("Choose a folder and export the highlighted photos (or all photos)")
             .disabled(store.photos.allSatisfy { $0.chosenResult == nil })
             Button { showInspector.toggle() } label: { Label("Edits", systemImage: "sidebar.right") }
         }
@@ -88,7 +97,8 @@ struct EmptyStateView: View {
     @EnvironmentObject var store: AppStore
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "photo.on.rectangle.angled").font(.system(size: 54)).foregroundStyle(.secondary)
+            LogoView(size: 180)
+            Text("Rocco Show Ready").font(.title.weight(.semibold))
             Text("Drop listing photos or a folder here").font(.title2)
             Text("JPEG, HEIC, PNG, TIFF and camera RAW. Originals are never changed.")
                 .foregroundStyle(.secondary)
@@ -99,6 +109,16 @@ struct EmptyStateView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The app's mark, drawn by the same code that renders the app icon.
+struct LogoView: View {
+    var size: CGFloat
+    var body: some View {
+        Image(nsImage: LogoArt.image(points: size))
+            .frame(width: size, height: size)
+            .accessibilityLabel("Rocco Show Ready")
     }
 }
 

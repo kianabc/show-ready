@@ -44,11 +44,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Generated from scripts/make-icon.swift rather than checked in as a binary.
-if [ ! -f "$ROOT/Resources/Showready.icns" ]; then
-  mkdir -p "$ROOT/Resources"
-  swift scripts/make-icon.swift >/dev/null \
-    && iconutil -c icns build/Showready.iconset -o Resources/Showready.icns
+# Generated from the shared logo artwork rather than checked in as a binary.
+# Regenerated whenever the artwork or the renderer is newer than the icon.
+LOGO_SRC="$ROOT/Sources/Showready/Services/LogoArt.swift"
+ICON_MAIN="$ROOT/scripts/make-icon/main.swift"
+ICNS="$ROOT/Resources/Showready.icns"
+if [ ! -f "$ICNS" ] || [ "$LOGO_SRC" -nt "$ICNS" ] || [ "$ICON_MAIN" -nt "$ICNS" ]; then
+  mkdir -p "$ROOT/Resources" "$ROOT/build"
+  swiftc "$ICON_MAIN" "$LOGO_SRC" -o "$ROOT/build/make-icon" \
+    && (cd "$ROOT" && build/make-icon >/dev/null) \
+    && iconutil -c icns "$ROOT/build/Showready.iconset" -o "$ICNS"
 fi
 cp "$ROOT/Resources/Showready.icns" "$APP/Contents/Resources/Showready.icns"
 

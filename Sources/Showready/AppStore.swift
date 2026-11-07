@@ -71,6 +71,8 @@ struct AppSettings: Codable, Equatable {
     // Optional so settings saved by older builds still decode.
     var defaultInteriorOptions: EditOptions? = nil
     var defaultExteriorOptions: EditOptions? = nil
+    /// Where the last save went; the save dialog opens there next time.
+    var lastSaveFolder: URL? = nil
 }
 
 @MainActor
@@ -650,7 +652,7 @@ final class AppStore: ObservableObject {
     func saveApproved() {
         let ids = approvedIDs
         guard !ids.isEmpty else {
-            alert = "No approved photos yet. Open a photo and press Approve (or the A key) on the edits you like."
+            alert = "No selected photos yet. Open a photo and press Select (or the A key) on the versions you like."
             return
         }
         export(ids)
@@ -666,8 +668,18 @@ final class AppStore: ObservableObject {
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
             panel.canCreateDirectories = true
-            panel.prompt = "Export Here"
+            panel.allowsMultipleSelection = false
+            panel.title = "Save Photos"
+            panel.message = "Choose the folder to save \(ready.count) photo\(ready.count == 1 ? "" : "s") in. Use New Folder to make one."
+            panel.prompt = "Save Here"
+            if let last = settings.lastSaveFolder,
+               FileManager.default.fileExists(atPath: last.path) {
+                panel.directoryURL = last
+            } else {
+                panel.directoryURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
+            }
             guard panel.runModal() == .OK, let folder = panel.url else { return }
+            settings.lastSaveFolder = folder
 
             Task {
                 let failures = await exportTo(folder, ids: ready.map(\.id))
