@@ -78,7 +78,7 @@ struct ContentView: View {
                 Button { store.cancel() } label: { Label("Stop", systemImage: "stop.fill") }
             }
             Button { store.saveApproved() } label: {
-                Label("Save Selected…", systemImage: "checkmark.circle")
+                Label("Save Selected…", systemImage: "square.and.arrow.down")
             }
             .disabled(store.approvedIDs.isEmpty)
             .help(store.approvedIDs.isEmpty ? "Select versions first (A in the compare view)"

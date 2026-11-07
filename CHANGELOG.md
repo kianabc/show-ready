@@ -3,6 +3,11 @@
 All notable changes to Showready. One section per release, newest first.
 Versions follow semantic versioning: patch for fixes, minor for features.
 
+## [0.7.1] — 2026-11-06
+
+### Improved
+- The Save Selected button now uses the standard save icon.
+
 ## [0.7.0] — 2026-11-06
 
 ### Added
